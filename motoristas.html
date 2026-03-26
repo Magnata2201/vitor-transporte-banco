@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logística - Cadastro de Motoristas</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="icon.ico">
+    <style>
+        /* Estilos para a tabela e ações */
+        #tabelaMotoristas { width: 100%; border-collapse: collapse; margin-top: 20px; background-color: white; }
+        #tabelaMotoristas th, #tabelaMotoristas td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        #tabelaMotoristas th { background-color: #f8f9fa; font-weight: bold; }
+        .acoes-flex { display: flex; gap: 8px; }
+        .btn-edit { background-color: #ffc107; color: black; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-danger { background-color: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <nav class="top-nav">
+        <ul>
+            <li><a href="index.html">🚀 Iniciar Viagem</a></li>
+            <li><a href="produtos.html">📦 Produtos</a></li>
+            <li><a href="clientes.html">👥 Clientes</a></li>
+            <li><a href="motoristas.html" class="active">🚚 Motoristas</a></li>
+            <li><a href="financeiro.html">💲 Financeiro</a></li>
+            <li><a href="etiquetas.html">🏷️ Etiquetas</a></li>
+            <li><a href="romaneios_salvos.html">📋 Romaneios Salvos</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <h1>🚚 Cadastro de Motoristas</h1>
+        <p id="formDescricao">Gerencie os motoristas da sua frota. Os dados são sincronizados no Firebase.</p>
+
+        <form id="formCadastroMotorista">
+            <input type="hidden" id="editIndex" value="-1">
+
+            <div class="form-group">
+                <label for="nomeMotorista">Nome Completo:</label>
+                <input type="text" id="nomeMotorista" required placeholder="Ex: João Silva">
+            </div>
+
+            <div class="form-group">
+                <label for="cnhMotorista">CNH:</label>
+                <input type="text" id="cnhMotorista" required placeholder="Nº da Carteira de Habilitação">
+            </div>
+
+            <div class="form-group">
+                <label for="telefoneMotorista">Telefone:</label>
+                <input type="text" id="telefoneMotorista" placeholder="(00) 00000-0000">
+            </div>
+
+            <button type="submit" id="btnSalvar">Salvar Motorista</button>
+            <button type="button" id="btnCancelar" style="display: none; background-color: #6c757d;">Cancelar Edição</button>
+        </form>
+
+        <table id="tabelaMotoristas">
+            <thead>
+                <tr>
+                    <th>Nome do Motorista</th>
+                    <th>CNH</th>
+                    <th>Telefone</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                </tbody>
+        </table>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // Sua configuração do Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCwLzjKJXDCf-9UNNT1X5fzvEgFIc1Hh24",
+            authDomain: "meu-banco-2201.firebaseapp.com",
+            projectId: "meu-banco-2201",
+            storageBucket: "meu-banco-2201.firebasestorage.app",
+            messagingSenderId: "601801632834",
+            appId: "1:601801632834:web:580e9106f6796ffbe311db"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const motoristasCol = collection(db, "motoristas");
+
+        const form = document.getElementById('formCadastroMotorista');
+        const tbody = document.querySelector('#tabelaMotoristas tbody');
+        const editIndexInput = document.getElementById('editIndex');
+        const btnSalvar = document.getElementById('btnSalvar');
+        const btnCancelar = document.getElementById('btnCancelar');
+
+        let listaDeMotoristas = [];
+
+        // 1. Função para carregar e mostrar a tabela
+        async function renderizarTabela() {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">A carregar motoristas...</td></tr>';
+            try {
+                const querySnapshot = await getDocs(motoristasCol);
+                tbody.innerHTML = '';
+                listaDeMotoristas = [];
+
+                querySnapshot.forEach((doc) => {
+                    listaDeMotoristas.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Ordenar por nome
+                listaDeMotoristas.sort((a, b) => a.nome.localeCompare(b.nome));
+
+                if (listaDeMotoristas.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Nenhum motorista cadastrado.</td></tr>';
+                    return;
+                }
+
+                listaDeMotoristas.forEach((m, index) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><strong>${m.nome}</strong></td>
+                        <td>${m.cnh}</td>
+                        <td>${m.telefone || '---'}</td>
+                        <td class="acoes-flex">
+                            <button class="btn-edit" data-index="${index}">Editar</button>
+                            <button class="btn-danger" data-index="${index}">Excluir</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="4">Erro ao carregar dados.</td></tr>';
+            }
+        }
+
+        // 2. Salvar ou Atualizar
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const idDoc = editIndexInput.value;
+            const dados = {
+                nome: document.getElementById('nomeMotorista').value,
+                cnh: document.getElementById('cnhMotorista').value,
+                telefone: document.getElementById('telefoneMotorista').value
+            };
+
+            try {
+                if (idDoc !== "-1") {
+                    await updateDoc(doc(db, "motoristas", idDoc), dados);
+                    alert('Motorista atualizado!');
+                } else {
+                    await addDoc(motoristasCol, dados);
+                    alert('Motorista cadastrado com sucesso!');
+                }
+                resetarFormulario();
+                renderizarTabela();
+            } catch (e) {
+                alert("Erro ao salvar.");
+            }
+        });
+
+        // 3. Lógica dos botões da tabela (Editar/Excluir)
+        tbody.addEventListener('click', async (e) => {
+            const index = e.target.dataset.index;
+            if (index === undefined) return;
+            const m = listaDeMotoristas[index];
+
+            if (e.target.classList.contains('btn-edit')) {
+                document.getElementById('nomeMotorista').value = m.nome;
+                document.getElementById('cnhMotorista').value = m.cnh;
+                document.getElementById('telefoneMotorista').value = m.telefone || '';
+                editIndexInput.value = m.id;
+                btnSalvar.textContent = "Confirmar Alteração";
+                btnCancelar.style.display = "inline-block";
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            if (e.target.classList.contains('btn-danger')) {
+                if (confirm(`Eliminar o motorista "${m.nome}"?`)) {
+                    await deleteDoc(doc(db, "motoristas", m.id));
+                    renderizarTabela();
+                }
+            }
+        });
+
+        function resetarFormulario() {
+            form.reset();
+            editIndexInput.value = "-1";
+            btnSalvar.textContent = "Salvar Motorista";
+            btnCancelar.style.display = "none";
+        }
+
+        btnCancelar.onclick = resetarFormulario;
+
+        // Iniciar
+        renderizarTabela();
+    </script>
+</body>
+</html>

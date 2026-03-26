@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logística - Impressão de Etiquetas</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="icon.ico">
+
+<style>
+        /* REGRAS DE IMPRESSÃO (Mantidas conforme seu original) */
+        @media print {
+            body > *:not(#print-area) { display: none !important; }
+            @page { size: 100mm 50mm; margin: 0; }
+            body { margin: 0; padding: 0; }
+            #print-area { display: block !important; visibility: visible !important; }
+            .etiqueta-para-imprimir {
+                width: 100mm; height: 50mm; box-sizing: border-box;
+                font-family: Arial, Helvetica, sans-serif; color: #000;
+                page-break-after: always; 
+            }
+            .etiqueta-conteudo {
+                padding: 5mm; text-align: center; width: 100%; height: 100%;
+                box-sizing: border-box; display: flex; flex-direction: column;
+                justify-content: center; align-items: center;
+            }
+            .etiqueta-conteudo h1 { font-size: 30pt; font-weight: bold; margin: 0 0 5mm 0; color: #000; }
+            .etiqueta-conteudo p { font-size: 30pt; font-weight: bold; margin: 0; color: #000; }
+        }
+    </style>
+</head>
+<body>
+    
+    <nav class="top-nav">
+        <ul>
+            <li><a href="index.html">🚀 Iniciar Viagem</a></li>
+            <li><a href="produtos.html">📦 Produtos</a></li>
+            <li><a href="clientes.html">👥 Clientes</a></li>
+            <li><a href="motoristas.html">🚚 Motoristas</a></li>
+            <li><a href="financeiro.html">💲 Financeiro</a></li>
+            <li><a href="etiquetas.html" class="active">🏷️ Etiquetas</a></li>
+            <li><a href="romaneios_salvos.html">📋 Romaneios Salvos</a></li>
+        </ul>
+    </nav>
+
+    <div class="container" id="etiqueta-settings">
+        <h1>🏷️ Impressão de Etiquetas</h1>
+        <p>Selecione o cliente do banco de dados para gerar as etiquetas.</p>
+
+        <form id="formImprimirEtiquetas">
+            <div class="form-group">
+                <label for="selectCliente">Selecione o Cliente:</label>
+                <select id="selectCliente" required>
+                    <option value="" disabled selected>Buscando clientes no Firebase...</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="quantidade">Quantidade de Etiquetas:</label>
+                <input type="number" id="quantidade" min="1" value="1" required>
+            </div>
+            
+            <button type="submit">🖨️ Gerar e Imprimir Etiquetas</button>
+        </form>
+    </div>
+
+    <div id="print-area"></div>
+
+    <script type="module">
+        // 1. Configuração e Importação do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCwLzjKJXDCf-9UNNT1X5fzvEgFIc1Hh24",
+            authDomain: "meu-banco-2201.firebaseapp.com",
+            projectId: "meu-banco-2201",
+            storageBucket: "meu-banco-2201.firebasestorage.app",
+            messagingSenderId: "601801632834",
+            appId: "1:601801632834:web:580e9106f6796ffbe311db"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 2. Carregar Clientes do Firestore
+        async function carregarClientesFirebase() {
+            const select = document.getElementById('selectCliente');
+            try {
+                const querySnapshot = await getDocs(collection(db, "clientes"));
+                select.innerHTML = '<option value="" disabled selected>-- Selecione um cliente --</option>';
+                
+                let clientes = [];
+                querySnapshot.forEach((doc) => {
+                    clientes.push(doc.data());
+                });
+
+                // Ordenar por nome
+                clientes.sort((a, b) => a.nome.localeCompare(b.nome));
+
+                clientes.forEach(cliente => {
+                    const option = document.createElement('option');
+                    option.value = cliente.nome;
+                    option.textContent = `${cliente.nome} (${cliente.endereco || 'Sem endereço'})`;
+                    select.appendChild(option);
+                });
+
+            } catch (error) {
+                console.error("Erro ao carregar clientes: ", error);
+                select.innerHTML = '<option value="" disabled>Erro ao carregar dados</option>';
+            }
+        }
+
+        // 3. Evento do Formulário
+        document.getElementById('formImprimirEtiquetas').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const nomeCliente = document.getElementById('selectCliente').value;
+            const quantidade = parseInt(document.getElementById('quantidade').value);
+
+            const printArea = document.getElementById('print-area');
+            printArea.innerHTML = ''; 
+
+            for (let i = 0; i < quantidade; i++) {
+                const etiquetaDiv = document.createElement('div');
+                etiquetaDiv.className = 'etiqueta-para-imprimir';
+                etiquetaDiv.innerHTML = `
+                    <div class="etiqueta-conteudo">
+                        <h1>Vitor Transportes</h1>
+                        <p>${nomeCliente}</p>
+                    </div>
+                `;
+                printArea.appendChild(etiquetaDiv);
+            }
+
+            window.print();
+        });
+
+        // Inicializar a busca
+        carregarClientesFirebase();
+    </script>
+</body>
+</html>

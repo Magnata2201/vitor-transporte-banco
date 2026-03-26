@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logística - Início da Viagem</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="icon.ico">
+</head>
+<body>
+
+    <nav class="top-nav">
+        <ul>
+            <li><a href="index.html" class="active">🚀 Iniciar Viagem</a></li>
+            <li><a href="produtos.html">📦 Produtos</a></li>
+            <li><a href="clientes.html">👥 Clientes</a></li>
+            <li><a href="motoristas.html">🚚 Motoristas</a></li>
+            <li><a href="financeiro.html">💲 Financeiro</a></li>
+            <li><a href="etiquetas.html">🏷️ Etiquetas</a></li>
+            <li><a href="romaneios_salvos.html">📋 Romaneios Salvos</a></li>
+        </ul>
+    </nav>
+    
+    <div class="container">
+        <h1>🚀 Iniciar Nova Viagem</h1>
+        <p>Selecione o motorista, a placa e a rota para começar.</p>
+
+        <form id="formViagem">
+            
+            <div class="form-group">
+                <label for="motorista">Selecione o Motorista:</label>
+                <select id="motorista" required>
+                    <option value="" disabled selected>Carregando motoristas...</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="placa">Placa do Veículo:</label>
+                <input type="text" id="placa" required placeholder="ABC-1234">
+            </div>
+
+            <div class="form-group">
+                <label for="rota">Selecione a Rota:</label>
+                <select id="rota" required>
+                    <option value="" disabled selected>-- Escolha a Rota --</option>
+                    <option value="Rota 1">Rota 1</option>
+                    <option value="Rota 2">Rota 2</option>
+                </select>
+            </div>
+
+            <button type="submit">Próximo: Montar Carga ➡️</button>
+        </form>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCwLzjKJXDCf-9UNNT1X5fzvEgFIc1Hh24",
+            authDomain: "meu-banco-2201.firebaseapp.com",
+            projectId: "meu-banco-2201",
+            storageBucket: "meu-banco-2201.firebasestorage.app",
+            messagingSenderId: "601801632834",
+            appId: "1:601801632834:web:580e9106f6796ffbe311db"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const selectMotorista = document.getElementById('motorista');
+        const selectRota = document.getElementById('rota');
+
+        // CARREGAR MOTORISTAS DO FIREBASE
+        async function carregarMotoristas() {
+            try {
+                const querySnapshot = await getDocs(collection(db, "motoristas"));
+                selectMotorista.innerHTML = '<option value="" disabled selected>-- Selecione um motorista --</option>';
+                
+                let motoristas = [];
+                querySnapshot.forEach((doc) => {
+                    motoristas.push(doc.data());
+                });
+
+                motoristas.sort((a, b) => a.nome.localeCompare(b.nome));
+
+                motoristas.forEach(m => {
+                    const option = document.createElement('option');
+                    option.value = m.nome;
+                    option.textContent = m.nome;
+                    selectMotorista.appendChild(option);
+                });
+
+                if (motoristas.length === 0) {
+                    selectMotorista.innerHTML = '<option value="" disabled>Nenhum motorista cadastrado</option>';
+                }
+            } catch (error) {
+                console.error("Erro ao carregar motoristas:", error);
+                selectMotorista.innerHTML = '<option value="" disabled>Erro ao carregar</option>';
+            }
+        }
+
+        // SUBMETER FORMULÁRIO
+        document.getElementById('formViagem').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const motorista = selectMotorista.value;
+            const placa = document.getElementById('placa').value;
+            const rota = selectRota.value;
+
+            const viagemAtual = {
+                motorista: motorista,
+                placa: placa,
+                rota: rota,
+                data: new Date().toLocaleDateString('pt-BR'),
+                clientes: [] 
+            };
+
+            // Salva no LocalStorage para a página carga.html usar
+            localStorage.setItem('viagemAtual', JSON.stringify(viagemAtual));
+            
+            // Redireciona para a próxima etapa
+            window.location.href = 'carga.html';
+        });
+
+        carregarMotoristas();
+    </script>
+
+</body>
+</html>

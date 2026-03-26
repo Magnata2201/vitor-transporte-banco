@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logística - Cadastro de Produtos</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="icon.ico">
+    <style>
+        #tabelaProdutos { width: 100%; border-collapse: collapse; margin-top: 20px; background-color: white; font-size: 13px; }
+        #tabelaProdutos th, #tabelaProdutos td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
+        #tabelaProdutos th { background-color: #f8f9fa; color: #333; }
+        .acoes-flex { display: flex; gap: 5px; justify-content: flex-start; }
+        .btn-acao { padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; }
+        .btn-edit { background-color: #ffc107; color: black; }
+        .btn-danger { background-color: #dc3545; }
+        select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; background: white; }
+        
+        /* Layout para alinhar os botões e o campo de pesquisa */
+        .botoes-e-pesquisa {
+            display: flex; 
+            gap: 15px; 
+            align-items: center; 
+            margin-top: 20px; 
+            flex-wrap: wrap; /* No celular, eles se empilham para não esmagar */
+        }
+        .botoes-e-pesquisa button {
+            flex: 1;
+            min-width: 150px;
+            margin: 0; /* Zera a margem padrão para alinhar com o input */
+        }
+        .input-pesquisa-tabela {
+            flex: 2; /* Ocupa o dobro de espaço dos botões */
+            min-width: 200px;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="top-nav">
+        <ul>
+            <li><a href="index.html">🚀 Iniciar Viagem</a></li>
+            <li><a href="produtos.html" class="active">📦 Produtos</a></li>
+            <li><a href="clientes.html">👥 Clientes</a></li>
+            <li><a href="motoristas.html">🚚 Motoristas</a></li>
+            <li><a href="financeiro.html">💲 Financeiro</a></li>
+            <li><a href="etiquetas.html">🏷️ Etiquetas</a></li>
+            <li><a href="romaneios_salvos.html">📋 Romaneios Salvos</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <h1>📦 Cadastro de Produtos</h1>
+        <p id="formDescricao">Gerencie seus produtos. Selecione o tipo de embalagem corretamente.</p>
+
+        <form id="formCadastroProduto">
+            <input type="hidden" id="editIndex" value="-1">
+            
+            <div class="form-group">
+                <label for="nome">Nome do Produto:</label>
+                <input type="text" id="nome" required placeholder="Ex: Tomate">
+            </div>
+
+            <div class="form-group">
+                <label for="tipo">Tipo/Unidade:</label>
+                <select id="tipo" required>
+                    <option value="" disabled selected>-- Selecione o Tipo --</option>
+                    <option value="Saco">Saco</option>
+                    <option value="Caixa">Caixa</option>
+                    <option value="Kg">Kg</option>
+                    <option value="Unidade">Unidade</option>
+                    <option value="Fardo">Fardo</option>
+                    <option value="Isopor">Isopor</option>
+                </select>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form-group">
+                    <label for="peso">Peso (kg) - Opcional:</label>
+                    <input type="number" id="peso" step="0.01" placeholder="0.00">
+                </div>
+                
+                <div class="form-group">
+                    <label for="quantidade">Quantidade - Opcional:</label>
+                    <input type="number" id="quantidade" step="0.01" placeholder="Ex: 10">
+                </div>
+            </div>
+
+            <div class="botoes-e-pesquisa">
+                <button type="submit" id="btnSalvar">Salvar Produto</button>
+                <button type="button" id="btnCancelar" style="display: none; background-color: #6c757d;">Cancelar</button>
+                
+                <input type="text" id="inputPesquisa" class="input-pesquisa-tabela" placeholder="🔍 Pesquisar produto na tabela...">
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table id="tabelaProdutos">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Tipo</th>
+                        <th>Peso</th>
+                        <th>Qtd.</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCwLzjKJXDCf-9UNNT1X5fzvEgFIc1Hh24",
+            authDomain: "meu-banco-2201.firebaseapp.com",
+            projectId: "meu-banco-2201",
+            storageBucket: "meu-banco-2201.firebasestorage.app",
+            messagingSenderId: "601801632834",
+            appId: "1:601801632834:web:580e9106f6796ffbe311db"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const produtosCol = collection(db, "produtos");
+
+        const form = document.getElementById('formCadastroProduto');
+        const tbody = document.querySelector('#tabelaProdutos tbody');
+        const editIndexInput = document.getElementById('editIndex');
+        const btnSalvar = document.getElementById('btnSalvar');
+        const btnCancelar = document.getElementById('btnCancelar');
+        const inputPesquisa = document.getElementById('inputPesquisa'); // Captura a barra de pesquisa
+
+        let listaDeProdutos = [];
+
+        // Função que busca os dados no banco
+        async function carregarProdutos() {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Buscando produtos...</td></tr>';
+            try {
+                const querySnapshot = await getDocs(produtosCol);
+                listaDeProdutos = [];
+                querySnapshot.forEach((doc) => {
+                    listaDeProdutos.push({ id: doc.id, ...doc.data() });
+                });
+
+                listaDeProdutos.sort((a, b) => a.nome.localeCompare(b.nome));
+                
+                // Manda exibir a tabela completa após carregar
+                mostrarTabela(listaDeProdutos);
+            } catch (e) { console.error(e); }
+        }
+
+        // Função isolada apenas para desenhar a tabela (facilita o filtro da pesquisa)
+        function mostrarTabela(produtosParaExibir) {
+            tbody.innerHTML = '';
+            
+            if(produtosParaExibir.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#666;">Nenhum produto encontrado.</td></tr>';
+                return;
+            }
+
+            produtosParaExibir.forEach((p) => {
+                // Encontra qual é a posição "real" do produto na lista inteira (importante para editar/excluir sem erro)
+                const indexReal = listaDeProdutos.findIndex(item => item.id === p.id);
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${p.nome}</strong></td>
+                    <td>${p.tipo}</td>
+                    <td>${p.peso ? p.peso + ' kg' : '---'}</td>
+                    <td>${p.quantidade ? p.quantidade : '---'}</td>
+                    <td class="acoes-flex">
+                        <button class="btn-acao btn-edit" data-index="${indexReal}">Editar</button>
+                        <button class="btn-acao btn-danger" data-index="${indexReal}">Excluir</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // MOTOR DE BUSCA: Filtra a tabela ao digitar
+        inputPesquisa.addEventListener('input', (e) => {
+            const termo = e.target.value.toLowerCase();
+            const produtosFiltrados = listaDeProdutos.filter(p => p.nome.toLowerCase().includes(termo));
+            mostrarTabela(produtosFiltrados);
+        });
+
+        // Salvar / Atualizar Produto
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const idDoc = editIndexInput.value;
+            
+            const dados = {
+                nome: document.getElementById('nome').value,
+                tipo: document.getElementById('tipo').value,
+                peso: document.getElementById('peso').value,
+                quantidade: document.getElementById('quantidade').value 
+            };
+
+            // Muda visualmente o botão para indicar carregamento
+            const btnOriginalText = btnSalvar.textContent;
+            btnSalvar.textContent = "Aguarde...";
+            btnSalvar.disabled = true;
+
+            try {
+                if (idDoc !== "-1") {
+                    await updateDoc(doc(db, "produtos", idDoc), dados);
+                    alert('Produto atualizado!');
+                } else {
+                    await addDoc(produtosCol, dados);
+                    alert('Produto salvo com sucesso!');
+                }
+                resetarFormulario();
+                carregarProdutos(); // Recarrega e exibe tudo atualizado
+                inputPesquisa.value = ""; // Limpa a barra de pesquisa
+            } catch (e) { 
+                alert("Erro ao salvar!"); 
+            } finally {
+                btnSalvar.textContent = btnOriginalText;
+                btnSalvar.disabled = false;
+            }
+        });
+
+        // Botões de Editar e Excluir
+        tbody.addEventListener('click', async (e) => {
+            const index = e.target.dataset.index;
+            if (index === undefined) return;
+            const p = listaDeProdutos[index];
+
+            if (e.target.classList.contains('btn-edit')) {
+                document.getElementById('nome').value = p.nome;
+                document.getElementById('tipo').value = p.tipo;
+                document.getElementById('peso').value = p.peso || '';
+                document.getElementById('quantidade').value = p.quantidade || ''; 
+                
+                editIndexInput.value = p.id;
+                btnSalvar.textContent = "Confirmar Alteração";
+                btnCancelar.style.display = "block"; // Mudado para block pois agora está no flex
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            if (e.target.classList.contains('btn-danger')) {
+                if (confirm(`Deseja excluir "${p.nome}"?`)) {
+                    try {
+                        await deleteDoc(doc(db, "produtos", p.id));
+                        carregarProdutos(); // Recarrega após excluir
+                    } catch (err) {
+                        alert("Erro ao excluir o produto.");
+                    }
+                }
+            }
+        });
+
+        function resetarFormulario() {
+            form.reset();
+            editIndexInput.value = "-1";
+            btnCancelar.style.display = "none";
+            btnSalvar.textContent = "Salvar Produto";
+        }
+
+        btnCancelar.onclick = resetarFormulario;
+
+        // Inicia a página carregando os produtos
+        carregarProdutos();
+    </script>
+</body>
+</html>

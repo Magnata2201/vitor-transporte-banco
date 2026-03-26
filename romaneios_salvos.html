@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logística - Romaneios Salvos</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="icon.ico">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    
+    <style>
+        /* Estilos de Impressão e Layout */
+        @media print {
+            body * { visibility: hidden; }
+            #areaImpressaoGeral, #areaImpressaoGeral * { visibility: visible !important; }
+            #areaImpressaoGeral { position: absolute; left: 0; top: 0; width: 100%; display: block !important; }
+            .no-print { display: none !important; }
+            .quebra-pagina { page-break-after: always; padding-top: 20px; }
+            .bloco-cliente-impressao { border: 1px solid #000; padding: 10px; margin-bottom: 20px; page-break-inside: avoid; }
+        }
+
+        /* --- ATUALIZAÇÕES DE RESPONSIVIDADE AQUI --- */
+        .filtros { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 15px; align-items: flex-end; border: 1px solid #ddd; flex-wrap: wrap; }
+        .filtros > div { flex: 1; min-width: 250px; } /* Faz os filtros quebrarem linha no celular */
+        
+        .card-romaneio { background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        
+        .info-viagem { flex: 1; min-width: 250px; }
+        .info-viagem b { color: #007bff; font-size: 1.1em; display: inline-block; margin-bottom: 5px; }
+        .valor-badge { background: #e7f3eb; color: #28a745; padding: 4px 8px; border-radius: 4px; font-weight: bold; margin-left: 10px; border: 1px solid #28a745; display: inline-block; }
+        .info-secundaria { font-size: 0.9em; color: #555; margin-top: 8px; background: #f1f1f1; padding: 5px; border-radius: 4px; }
+
+        .btn-geral { background-color: #28a745; color: white; border: none; padding: 12px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px; margin-bottom: 20px; width: 100%; transition: 0.2s; box-sizing: border-box; }
+        .btn-geral:hover { background-color: #218838; }
+        
+        .acoes-buttons { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: 1; min-width: 280px; justify-content: flex-end; }
+        .acoes-buttons button { padding: 10px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; border: none; flex: 1; min-width: 130px; /* Garante que os botões fiquem gordinhos no celular */ }
+        
+        .btn-imprimir { background: #007bff; color: white; }
+        .btn-editar { background: #ffc107; color: #000; }
+        .btn-excluir { background: #dc3545; color: white; }
+        .btn-compartilhar { background: #25D366; color: white; transition: 0.2s; }
+        .btn-compartilhar:hover { background: #128C7E; }
+        .btn-compartilhar:disabled { background: #999; cursor: not-allowed; }
+        
+        #areaImpressaoGeral { display: none; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+        table, th, td { border: 1px solid black; }
+        th, td { padding: 6px; text-align: left; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; padding: 15px; box-sizing: border-box; }
+        .modal-content { background: white; padding: 25px; border-radius: 8px; width: 100%; max-width: 600px; max-height: 85vh; overflow-y: auto; box-shadow: 0 5px 15px rgba(0,0,0,0.3); box-sizing: border-box; }
+        .fechar-modal { float: right; font-size: 28px; cursor: pointer; font-weight: bold; color: #666; margin-top: -10px; }
+        .fechar-modal:hover { color: #000; }
+        .item-ordem { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #ddd; margin-bottom: 8px; background: #f8f9fa; border-radius: 6px; flex-wrap: wrap; gap: 10px; }
+        
+        .input-ordem { width: 60px; padding: 8px; text-align: center; border: 1px solid #ccc; border-radius: 4px; font-weight: bold; font-size: 16px; }
+        .input-ordem:focus { border-color: #007bff; outline: none; box-shadow: 0 0 5px rgba(0,123,255,0.5); }
+    </style>
+</head>
+<body>
+
+    <nav class="top-nav no-print">
+        <ul>
+            <li><a href="index.html">🚀 Iniciar Viagem</a></li>
+            <li><a href="produtos.html">📦 Produtos</a></li>
+            <li><a href="clientes.html">👥 Clientes</a></li>
+            <li><a href="motoristas.html">🚚 Motoristas</a></li>
+            <li><a href="financeiro.html">💲 Financeiro</a></li>
+            <li><a href="etiquetas.html">🏷️ Etiquetas</a></li>
+            <li><a href="romaneios_salvos.html" class="active">📋 Romaneios Salvos</a></li>
+        </ul>
+    </nav>
+
+    <div class="container no-print">
+        <h1>📋 Gestão de Romaneios</h1>
+
+        <div class="filtros">
+            <div>
+                <label>Filtrar por Motorista:</label>
+                <input type="text" id="filtroMotorista" placeholder="Procurar motorista...">
+            </div>
+            <div>
+                <label>Data do Romaneio:</label>
+                <input type="date" id="filtroData">
+            </div>
+        </div>
+
+        <button class="btn-geral" onclick="window.abrirModalOrdem()">🖨️ IMPRIMIR RESUMO GERAL (ORDENAR CLIENTES)</button>
+
+        <div id="listaRomaneios">
+            <p>A carregar dados do Firebase...</p>
+        </div>
+    </div>
+
+    <div id="modalOrdem" class="modal-overlay no-print" style="display:none;">
+        <div class="modal-content">
+            <span class="fechar-modal" onclick="window.fecharModalOrdem()">&times;</span>
+            <h2 style="margin-top: 0; color: #333;">Ordem de Impressão</h2>
+            <p style="color: #666; margin-bottom: 20px;">Digite a ordem desejada (1, 2, 3...) na caixinha para cada cliente.</p>
+            
+            <ul id="listaOrdemClientes" style="list-style:none; padding:0; margin: 0 0 20px 0;"></ul>
+            
+            <button class="btn-geral" style="margin-bottom: 0;" onclick="window.confirmarImpressaoGeral()">🖨️ CONFIRMAR E IMPRIMIR</button>
+        </div>
+    </div>
+
+    <div id="areaImpressaoGeral"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, query, orderBy, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCwLzjKJXDCf-9UNNT1X5fzvEgFIc1Hh24",
+            authDomain: "meu-banco-2201.firebaseapp.com",
+            projectId: "meu-banco-2201",
+            storageBucket: "meu-banco-2201.firebasestorage.app",
+            messagingSenderId: "601801632834",
+            appId: "1:601801632834:web:580e9106f6796ffbe311db"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let todosRomaneios = [];
+        let filtrados = [];
+        let clientesParaImprimir = [];
+
+        document.getElementById('filtroData').value = new Date().toISOString().split('T')[0];
+
+        async function carregarRomaneios() {
+            try {
+                const q = query(collection(db, "romaneios"), orderBy("dataSalva", "desc"));
+                const querySnapshot = await getDocs(q);
+                todosRomaneios = [];
+                
+                querySnapshot.forEach(docSnap => { 
+                    todosRomaneios.push({ ...docSnap.data(), id: docSnap.id }); 
+                });
+                
+                filtrar();
+            } catch (error) { 
+                console.error("Erro:", error);
+                document.getElementById('listaRomaneios').innerHTML = '<p>Erro ao conectar ao banco.</p>';
+            }
+        }
+
+        function filtrar() {
+            const motoristaBusca = document.getElementById('filtroMotorista').value.toLowerCase();
+            const dataBusca = document.getElementById('filtroData').value;
+            
+            filtrados = todosRomaneios.filter(r => {
+                const dataDoc = r.dataSalva ? r.dataSalva.split('T')[0] : "";
+                const dataOk = dataBusca ? dataDoc === dataBusca : true;
+                const motoristaOk = r.motorista && r.motorista.toLowerCase().includes(motoristaBusca);
+                return dataOk && motoristaOk;
+            });
+
+            const listaDiv = document.getElementById('listaRomaneios');
+            if (filtrados.length === 0) {
+                listaDiv.innerHTML = '<p style="color: #666; font-style: italic;">Nenhum romaneio encontrado para esta data/motorista.</p>';
+                return;
+            }
+
+            listaDiv.innerHTML = filtrados.map(r => {
+                const nomesClientes = r.clientes ? r.clientes.map(c => c.nome).join(', ') : 'Sem Cliente';
+                return `
+                <div class="card-romaneio">
+                    <div class="info-viagem">
+                        <b>👥 ${nomesClientes}</b> <span class="valor-badge">💰 R$ ${parseFloat(r.valorTotal || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                        <div style="margin-top: 5px;">📅 ${new Date(r.dataSalva).toLocaleDateString('pt-BR')}</div>
+                        <div class="info-secundaria">🚚 Motorista: ${r.motorista}</div>
+                    </div>
+                    <div class="acoes-buttons">
+                        <button class="btn-editar" onclick="window.editarRomaneio('${r.id}')">✏️ Editar</button>
+                        <button class="btn-compartilhar" onclick="window.compartilharRomaneio('${r.id}', event)"><i class="fa-solid fa-share-nodes"></i> Enviar PDF</button>
+                        <button class="btn-imprimir" onclick="window.gerarViaRomaneio('${r.id}')">🖨️ Imprimir</button>
+                        <button class="btn-excluir" onclick="window.excluirRomaneio('${r.id}')">🗑️ Excluir</button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        window.editarRomaneio = (id) => {
+            const r = todosRomaneios.find(rom => rom.id === id);
+            const viagemParaEditar = { ...r, editandoId: id }; 
+            localStorage.setItem('viagemAtual', JSON.stringify(viagemParaEditar));
+            window.location.href = 'carga.html';
+        };
+
+        window.excluirRomaneio = async (id) => {
+            if (confirm("Deseja apagar este romaneio definitivamente?")) {
+                try {
+                    await deleteDoc(doc(db, "romaneios", id));
+                    alert("Excluído com sucesso!");
+                    carregarRomaneios();
+                } catch (e) { alert("Erro ao excluir: " + e.message); }
+            }
+        };
+
+        window.compartilharRomaneio = async (id, event) => {
+            const r = todosRomaneios.find(rom => rom.id === id);
+            if (!r) return;
+
+            const btn = event.currentTarget;
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Gerando...';
+            btn.disabled = true;
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('p', 'mm', 'a4');
+                
+                const dataFormatada = new Date(r.dataSalva).toLocaleDateString('pt-BR');
+                const nomesClientesParaArquivo = r.clientes ? r.clientes.map(c => c.nome).join('_') : 'Desconhecido';
+                const nomeDoArquivo = `Romaneio_${nomesClientesParaArquivo}.pdf`.replace(/ /g, '_');
+
+                let controleY = 10;
+
+                r.clientes.forEach((cliente, index) => {
+                    if (index > 0) {
+                        doc.addPage();
+                        controleY = 10;
+                    }
+
+                    doc.setFontSize(16);
+                    doc.setFont("helvetica", "bold");
+                    doc.text("ROMANEIO DE ENTREGA", 105, controleY, { align: "center" });
+                    
+                    controleY += 6;
+                    doc.setFontSize(10);
+                    doc.setFont("helvetica", "normal");
+                    doc.text(`MOTORISTA: ${r.motorista} | ROTA: ${r.rota || '---'} | DATA: ${dataFormatada}`, 105, controleY, { align: "center" });
+                    
+                    controleY += 4;
+                    doc.setLineWidth(0.5);
+                    doc.line(10, controleY, 200, controleY);
+
+                    controleY += 8;
+                    doc.setFontSize(11);
+                    doc.setFont("helvetica", "bold");
+                    doc.text(`CLIENTE: ${cliente.nome} | CPF/CNPJ: ${cliente.cpf_cnpj || '---'}`, 10, controleY);
+
+                    controleY += 4;
+
+                    const linhasTabela = cliente.produtos.map(p => [
+                        p.qtd,
+                        p.nome,
+                        p.fornecedor || '--',
+                        `R$ ${parseFloat(p.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`,
+                        p.modoPreco,
+                        p.volumes,
+                        `R$ ${parseFloat(p.totalCalculado).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
+                    ]);
+
+                    doc.autoTable({
+                        startY: controleY,
+                        head: [['Qtd.', 'Produto', 'Fornecedor', 'V. Caixa', 'Modo', 'Vol.', 'Total']],
+                        body: linhasTabela,
+                        theme: 'grid',
+                        headStyles: { fillColor: [242, 242, 242], textColor: [0, 0, 0], fontStyle: 'bold' },
+                        styles: { fontSize: 9, cellPadding: 2, textColor: [0, 0, 0] },
+                        columnStyles: {
+                            0: { halign: 'center' },
+                            1: { cellWidth: 'auto' },
+                            3: { halign: 'center' },
+                            4: { halign: 'center' },
+                            5: { halign: 'center' },
+                            6: { halign: 'right', fontStyle: 'bold' }
+                        }
+                    });
+
+                    controleY = doc.lastAutoTable.finalY + 8;
+                    
+                    const totalCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.totalCalculado || 0), 0);
+                    doc.setFontSize(11);
+                    doc.setFont("helvetica", "bold");
+                    doc.text(`Total do Cliente: R$ ${totalCli.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, 200, controleY, { align: "right" });
+                    
+                    controleY += 10;
+                });
+
+                controleY += 5;
+                doc.setLineWidth(0.5);
+                doc.line(10, controleY, 200, controleY);
+                controleY += 8;
+                doc.setFontSize(14);
+                doc.text(`VALOR TOTAL DO ROMANEIO: R$ ${parseFloat(r.valorTotal || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, 200, controleY, { align: "right" });
+
+                const pdfBlob = doc.output('blob');
+                const file = new File([pdfBlob], nomeDoArquivo, { type: 'application/pdf' });
+
+                // TENTA ABRIR O MENU NATIVO DE COMPARTILHAMENTO
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: 'Romaneio de Entrega',
+                            text: `Segue o romaneio do cliente: ${nomesClientesParaArquivo.replace(/_/g, ', ')}`
+                        });
+                    } catch (shareError) {
+                        // Se o usuário cancelar a ação, não faz nada
+                        console.log("Compartilhamento cancelado ou falhou", shareError);
+                    }
+                } else {
+                    // PLANO B: FAZ DOWNLOAD AUTOMÁTICO SE O MENU NÃO ABRIR
+                    doc.save(nomeDoArquivo);
+                    alert(`O menu de aplicativos não está disponível neste aparelho. O arquivo "${nomeDoArquivo}" foi baixado em vez disso!`);
+                }
+
+            } catch (error) {
+                console.error(error);
+                alert("Erro ao tentar gerar o PDF nativo.");
+            } finally {
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            }
+        };
+
+        window.abrirModalOrdem = () => {
+            if(filtrados.length === 0) return alert("Não há dados para imprimir.");
+            clientesParaImprimir = [];
+            filtrados.forEach(r => { r.clientes.forEach(c => { clientesParaImprimir.push({ motorista: r.motorista, romaneioId: r.id, ...c }); }); });
+            window.renderizarListaOrdem();
+            document.getElementById('modalOrdem').style.display = 'flex';
+        };
+
+        window.fecharModalOrdem = () => { document.getElementById('modalOrdem').style.display = 'none'; };
+
+        window.renderizarListaOrdem = () => {
+            const ul = document.getElementById('listaOrdemClientes');
+            ul.innerHTML = '';
+            clientesParaImprimir.forEach((c, index) => {
+                ul.innerHTML += `
+                    <li class="item-ordem">
+                        <div><strong style="font-size: 16px;">${c.nome}</strong><br><small style="color: #007bff; font-weight: bold;">Motorista: ${c.motorista}</small></div>
+                        <div style="display: flex; align-items: center; gap: 10px;"><label style="font-size: 14px; color: #555; font-weight: bold;">Posição:</label><input type="number" class="input-ordem" data-index="${index}" value="${index + 1}" min="1"></div>
+                    </li>`;
+            });
+        };
+
+        window.confirmarImpressaoGeral = () => {
+            const inputs = document.querySelectorAll('.input-ordem');
+            inputs.forEach(input => {
+                const idxOriginal = parseInt(input.getAttribute('data-index'));
+                clientesParaImprimir[idxOriginal].ordemImpressao = parseInt(input.value) || 999;
+            });
+
+            clientesParaImprimir.sort((a, b) => a.ordemImpressao - b.ordemImpressao);
+            const area = document.getElementById('areaImpressaoGeral');
+            
+            let somaGeralLista = 0;
+            clientesParaImprimir.forEach(c => { somaGeralLista += c.produtos.reduce((acc, p) => acc + parseFloat(p.totalCalculado || 0), 0); });
+            
+            let html = `<div style="text-align:center; margin-bottom:30px; border-bottom: 3px double #000;"><h1>RESUMO GERAL DE CARGA</h1><h2 style="color:#28a745;">VALOR TOTAL DA LISTA: R$ ${somaGeralLista.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</h2></div>`;
+
+            clientesParaImprimir.forEach(cliente => {
+                html += `
+                    <div class="bloco-cliente-impressao">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <strong style="font-size: 1.1em;">CLIENTE: ${cliente.nome}</strong><strong style="font-size: 0.9em; background: #eee; padding: 4px 8px; border-radius: 4px;">🚚 MOTORISTA: ${cliente.motorista}</strong>
+                        </div>
+                        <table style="border-collapse: collapse; width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th style="border: 1px solid #000; padding: 4px; text-align: center;">Qtd.</th>
+                                    <th style="border: 1px solid #000; padding: 4px; text-align: left;">Produto</th>
+                                    <th style="border: 1px solid #000; padding: 4px; text-align: left;">Fornecedor</th>
+                                    <th style="border: 1px solid #000; padding: 4px; text-align: center;">Modo</th>
+                                    <th style="border: 1px solid #000; padding: 4px; text-align: center;">Vol.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${cliente.produtos.map(p => `<tr>
+                                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.qtd}</td>
+                                    <td style="border: 1px solid #000; padding: 4px;">${p.nome}</td>
+                                    <td style="border: 1px solid #000; padding: 4px;">${p.fornecedor || '--'}</td>
+                                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.modoPreco}</td>
+                                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.volumes}</td>
+                                </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>`;
+            });
+            
+            area.innerHTML = html;
+            window.fecharModalOrdem();
+            setTimeout(() => { window.print(); }, 300);
+        };
+
+        window.gerarViaRomaneio = (id) => {
+            const r = todosRomaneios.find(rom => rom.id === id);
+            const area = document.getElementById('areaImpressaoGeral');
+            let html = "";
+            r.clientes.forEach(cliente => {
+                const totalCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.totalCalculado || 0), 0);
+                html += `
+                <div class="quebra-pagina">
+                    <div style="text-align:center; border-bottom:2px solid #000; margin-bottom:10px;">
+                        <h1>ROMANEIO DE ENTREGA</h1>
+                        <p>MOTORISTA: ${r.motorista} | ROTA: ${r.rota || '---'} | DATA: ${new Date(r.dataSalva).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                    <div class="bloco-cliente-impressao" style="border:none; padding:0;">
+                        <p><strong>CLIENTE:</strong> ${cliente.nome} | <strong>CPF/CNPJ:</strong> ${cliente.cpf_cnpj || '---'}</p>
+                        <table style="border-collapse: collapse; width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th style="border: 1px solid #000; padding: 4px; text-align: center;">Qtd.</th>
+                                    <th style="border: 1px solid #000; padding: 4px; text-align: left;">Produto</th>
+                                    <th style="border: 1px solid #000; padding: 4px; text-align: left;">Fornecedor</th>
+                                    <th style="border: 1px solid #000; padding: 4px; text-align: center;">V. Caixa</th>
+                                    <th style="border: 1px solid #000; padding: 4px; text-align: center;">Modo</th>
+                                    <th style="border: 1px solid #000; padding: 4px; text-align: center;">Vol.</th>
+                                    <th style="border: 1px solid #000; padding: 4px; text-align: right;">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${cliente.produtos.map(p => `<tr>
+                                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.qtd}</td>
+                                    <td style="border: 1px solid #000; padding: 4px;">${p.nome}</td>
+                                    <td style="border: 1px solid #000; padding: 4px;">${p.fornecedor || '--'}</td>
+                                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">R$ ${parseFloat(p.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.modoPreco}</td>
+                                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.volumes}</td>
+                                    <td style="border: 1px solid #000; padding: 4px; text-align: right;">R$ ${parseFloat(p.totalCalculado).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                </tr>`).join('')}
+                            </tbody>
+                        </table>
+                        <div style="text-align:right; margin-top:10px; font-size:1.1em; border-top:1px solid #000; padding-top:5px;"><strong>Total do Cliente: R$ ${totalCli.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></div>
+                    </div>
+                    <div style="margin-top:20px; text-align:right; font-size:1.3em; background:#f9f9f9; padding:10px;"><strong>VALOR TOTAL DO ROMANEIO: R$ ${parseFloat(r.valorTotal || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></div>
+                </div>`;
+            });
+            area.innerHTML = html;
+            setTimeout(() => { window.print(); }, 300);
+        };
+
+        document.getElementById('filtroMotorista').oninput = filtrar;
+        document.getElementById('filtroData').onchange = filtrar;
+        carregarRomaneios();
+    </script>
+</body>
+</html>

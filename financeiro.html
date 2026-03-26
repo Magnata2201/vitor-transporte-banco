@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logística - Financeiro</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="icon.ico">
+    <style>
+        /* Novo layout flexível para encaixar a barra lateral */
+        .layout-wrapper {
+            display: flex;
+            gap: 20px;
+            max-width: 1100px;
+            margin: 20px auto;
+            padding: 0 20px;
+            align-items: flex-start;
+        }
+
+        /* Estilo da nova barra lateral de resumo */
+        .sidebar-resumo {
+            flex: 0 0 280px; /* Largura fixa da barra lateral */
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .sidebar-resumo h3 {
+            margin-top: 0;
+            font-size: 16px;
+            color: #333;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            text-align: center;
+        }
+
+        .item-motorista {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+
+        .item-motorista:last-child {
+            border-bottom: none;
+        }
+
+        .item-motorista strong {
+            color: #555;
+            font-size: 13px;
+        }
+
+        .item-motorista span {
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        /* Ajustes no container original para se adaptar ao novo layout */
+        .layout-wrapper .container {
+            margin: 0;
+            flex: 1; /* Ocupa o resto do espaço */
+            max-width: none;
+            padding: 25px;
+        }
+
+        /* Responsividade para celular (empilha os blocos) */
+        @media (max-width: 768px) {
+            .layout-wrapper {
+                flex-direction: column-reverse; /* Coloca os cards principais em cima e o resumo embaixo */
+            }
+            .sidebar-resumo {
+                width: 100%;
+                box-sizing: border-box;
+                flex: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="top-nav">
+        <ul>
+            <li><a href="index.html">🚀 Iniciar Viagem</a></li>
+            <li><a href="produtos.html">📦 Produtos</a></li>
+            <li><a href="clientes.html">👥 Clientes</a></li>
+            <li><a href="motoristas.html">🚚 Motoristas</a></li>
+            <li><a href="financeiro.html" class="active">💲 Financeiro</a></li>
+            <li><a href="etiquetas.html">🏷️ Etiquetas</a></li>
+            <li><a href="romaneios_salvos.html">📋 Romaneios Salvos</a></li>
+        </ul>
+    </nav>
+
+    <div class="layout-wrapper">
+        <aside class="sidebar-resumo">
+            <h3>🚚 Resumo por Motorista</h3>
+            <div id="listaResumoMotoristas">
+                <div style="text-align: center; color: #999; padding: 15px 0; font-size: 13px;">Carregando...</div>
+            </div>
+        </aside>
+
+        <div class="container">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <h1 style="border-bottom: none; margin-bottom: 0;">💲 Financeiro</h1>
+                <div class="form-group" style="margin-bottom: 0; min-width: 200px;">
+                    <label for="filtroData" style="font-size: 13px;">Selecione o Dia:</label>
+                    <input type="date" id="filtroData">
+                </div>
+            </div>
+            
+            <p style="color: #666; font-size: 14px; margin-top: 5px; border-bottom: 2px solid #eee; padding-bottom: 15px;">Dados sincronizados com o banco de dados em tempo real.</p>
+
+            <div class="dashboard-grid">
+                <div class="card card-faturado">
+                    <h3>Total Faturado (Vendas)</h3>
+                    <h2 id="cardFaturado">R$ 0,00</h2>
+                </div>
+                <div class="card card-despesa">
+                    <h3>Total Despesas (Contas)</h3>
+                    <h2 id="cardDespesas">R$ 0,00</h2>
+                </div>
+                <div class="card card-saldo">
+                    <h3>Saldo do Dia</h3>
+                    <h2 id="cardSaldo">R$ 0,00</h2>
+                </div>
+            </div>
+
+            <div class="botoes-acao" style="margin-top: 30px; display: flex; gap: 15px; flex-wrap: wrap;">
+                <button id="btnAbrirModalDespesa" style="flex: 1; min-width: 200px;">➕ Registrar Nova Despesa</button>
+                <button id="btnAbrirModalDetalhes" class="btn-secondary" style="flex: 1; min-width: 200px;">📄 Ver Detalhes do Dia</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalNovaDespesa" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <span class="modal-close" id="btnCloseModalDespesa">&times;</span>
+            <h2>➕ Registrar Nova Despesa</h2>
+            <form id="formNovaDespesa">
+                <div class="form-group">
+                    <label>Descrição:</label>
+                    <input type="text" id="despesaDescricao" placeholder="Ex: Combustível" required>
+                </div>
+                <div class="form-group">
+                    <label>Valor (R$):</label>
+                    <input type="number" id="despesaValor" step="0.01" required>
+                </div>
+                <p><strong>Data:</strong> <span id="dataModalDespesa">--/--/----</span></p>
+                <button type="submit" id="btnSalvarDespesa">Salvar no Banco</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modalDetalhesDia" class="modal-overlay" style="display: none;">
+        <div class="modal-content modal-grande">
+            <span class="modal-close" id="btnCloseModalDetalhes">&times;</span>
+            <h2>📄 Detalhes do Dia: <span id="dataModalDetalhes">--/--/----</span></h2>
+            <div id="conteudoModalDetalhes"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, addDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCwLzjKJXDCf-9UNNT1X5fzvEgFIc1Hh24",
+            authDomain: "meu-banco-2201.firebaseapp.com",
+            projectId: "meu-banco-2201",
+            storageBucket: "meu-banco-2201.firebasestorage.app",
+            messagingSenderId: "601801632834",
+            appId: "1:601801632834:web:580e9106f6796ffbe311db"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const filtroData = document.getElementById('filtroData');
+        const formatarMoeda = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+        // --- FUNÇÃO PARA ATUALIZAR DASHBOARD E BARRA LATERAL ---
+        async function atualizarDashboard() {
+            const dataISO = filtroData.value;
+            if (!dataISO) return;
+
+            try {
+                // 1. Buscar Romaneios do Dia (Faturamento e Resumo por Motorista)
+                const qRomaneios = query(collection(db, "romaneios"));
+                const snapRomaneios = await getDocs(qRomaneios);
+                
+                let faturado = 0;
+                let romaneiosDoDia = [];
+                let resumoMotoristas = {}; // Objeto para armazenar as somas
+
+                snapRomaneios.forEach(doc => {
+                    const r = doc.data();
+                    
+                    if (r.dataSalva && r.dataSalva.startsWith(dataISO)) {
+                        const valorRomaneio = parseFloat(r.valorTotal || 0);
+                        faturado += valorRomaneio;
+                        romaneiosDoDia.push(r);
+
+                        // Agrupar valores por motorista
+                        const nomeMotorista = r.motorista ? r.motorista.toUpperCase() : "DESCONHECIDO";
+                        if (!resumoMotoristas[nomeMotorista]) {
+                            resumoMotoristas[nomeMotorista] = 0;
+                        }
+                        resumoMotoristas[nomeMotorista] += valorRomaneio;
+                    }
+                });
+
+                // 2. Buscar Despesas do Dia
+                const qDespesas = query(collection(db, "despesas"), where("data", "==", dataISO));
+                const snapDespesas = await getDocs(qDespesas);
+                let despesasTotal = 0;
+                let despesasDoDia = [];
+
+                snapDespesas.forEach(doc => {
+                    const d = doc.data();
+                    despesasTotal += parseFloat(d.valor);
+                    despesasDoDia.push(d);
+                });
+
+                // 3. Atualizar Interface - Cards Principais
+                document.getElementById('cardFaturado').textContent = formatarMoeda(faturado);
+                document.getElementById('cardDespesas').textContent = formatarMoeda(despesasTotal);
+                document.getElementById('cardSaldo').textContent = formatarMoeda(faturado - despesasTotal);
+
+                // 4. Atualizar Interface - Barra Lateral de Motoristas
+                const listaUI = document.getElementById('listaResumoMotoristas');
+                listaUI.innerHTML = '';
+                const motoristasNomes = Object.keys(resumoMotoristas).sort();
+
+                if (motoristasNomes.length > 0) {
+                    motoristasNomes.forEach(motorista => {
+                        listaUI.innerHTML += `
+                            <div class="item-motorista">
+                                <strong>🚚 ${motorista}</strong>
+                                <span>${formatarMoeda(resumoMotoristas[motorista])}</span>
+                            </div>
+                        `;
+                    });
+                } else {
+                    listaUI.innerHTML = '<div style="text-align: center; color: #999; padding: 15px 0; font-size: 13px;">Nenhum romaneio hoje.</div>';
+                }
+
+                // Guardar para o modal de detalhes
+                window.dadosDia = { faturado, despesasTotal, romaneiosDoDia, despesasDoDia };
+
+            } catch (e) { console.error("Erro ao buscar financeiro:", e); }
+        }
+
+        // --- SALVAR NOVA DESPESA NO FIREBASE ---
+        document.getElementById('formNovaDespesa').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btnSalvarDespesa');
+            btn.disabled = true;
+            btn.textContent = "Salvando...";
+
+            const novaDespesa = {
+                descricao: document.getElementById('despesaDescricao').value,
+                valor: parseFloat(document.getElementById('despesaValor').value),
+                data: filtroData.value,
+                criadoEm: new Date().toISOString()
+            };
+
+            try {
+                await addDoc(collection(db, "despesas"), novaDespesa);
+                alert("Despesa salva com sucesso!");
+                document.getElementById('modalNovaDespesa').style.display = 'none';
+                document.getElementById('formNovaDespesa').reset();
+                atualizarDashboard();
+            } catch (e) { alert("Erro ao salvar despesa"); }
+            finally { 
+                btn.disabled = false; 
+                btn.textContent = "Salvar no Banco"; 
+            }
+        };
+
+        // --- LÓGICA DE MODAIS ---
+        document.getElementById('btnAbrirModalDespesa').onclick = () => {
+            if(!filtroData.value) return alert("Selecione uma data");
+            document.getElementById('dataModalDespesa').textContent = new Date(filtroData.value + 'T00:00:00').toLocaleDateString('pt-BR');
+            document.getElementById('modalNovaDespesa').style.display = 'block';
+        };
+
+        document.getElementById('btnAbrirModalDetalhes').onclick = () => {
+            if(!window.dadosDia) return alert("Carregando dados...");
+            document.getElementById('dataModalDetalhes').textContent = new Date(filtroData.value + 'T00:00:00').toLocaleDateString('pt-BR');
+            
+            let html = `<h3>Faturamento</h3><ul>`;
+            window.dadosDia.romaneiosDoDia.forEach(r => {
+                html += `<li>Motorista: ${r.motorista} - <strong>${formatarMoeda(r.valorTotal)}</strong></li>`;
+            });
+            html += `</ul><hr><h3>Despesas</h3><ul>`;
+            window.dadosDia.despesasDoDia.forEach(d => {
+                html += `<li>${d.descricao}: <strong>${formatarMoeda(d.valor)}</strong></li>`;
+            });
+            html += `</ul>`;
+            
+            document.getElementById('conteudoModalDetalhes').innerHTML = html;
+            document.getElementById('modalDetalhesDia').style.display = 'block';
+        };
+
+        document.getElementById('btnCloseModalDespesa').onclick = () => document.getElementById('modalNovaDespesa').style.display = 'none';
+        document.getElementById('btnCloseModalDetalhes').onclick = () => document.getElementById('modalDetalhesDia').style.display = 'none';
+
+        // Inicialização
+        filtroData.value = new Date().toISOString().split('T')[0];
+        filtroData.onchange = atualizarDashboard;
+        atualizarDashboard();
+    </script>
+</body>
+</html>
