@@ -13,7 +13,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     
     <style>
-        /* Estilos de Impressão e Layout */
         @media print {
             body * { visibility: hidden; }
             #areaImpressaoGeral, #areaImpressaoGeral * { visibility: visible !important; }
@@ -23,11 +22,11 @@
             .bloco-cliente-impressao { border: 1px solid #000; padding: 10px; margin-bottom: 20px; page-break-inside: avoid; }
         }
 
-        /* --- ATUALIZAÇÕES DE RESPONSIVIDADE AQUI --- */
         .filtros { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 15px; align-items: flex-end; border: 1px solid #ddd; flex-wrap: wrap; }
-        .filtros > div { flex: 1; min-width: 250px; } /* Faz os filtros quebrarem linha no celular */
+        .filtros > div { flex: 1; min-width: 250px; }
         
-        .card-romaneio { background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .card-romaneio { background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-left: 5px solid #ccc; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; transition: 0.3s; }
+        .card-romaneio.romaneio-pago { border-left: 5px solid #28a745; background-color: #fafffc; }
         
         .info-viagem { flex: 1; min-width: 250px; }
         .info-viagem b { color: #007bff; font-size: 1.1em; display: inline-block; margin-bottom: 5px; }
@@ -38,15 +37,19 @@
         .btn-geral:hover { background-color: #218838; }
         
         .acoes-buttons { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: 1; min-width: 280px; justify-content: flex-end; }
-        .acoes-buttons button { padding: 10px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; border: none; flex: 1; min-width: 130px; /* Garante que os botões fiquem gordinhos no celular */ }
+        .acoes-buttons button { padding: 10px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; border: none; flex: 1; min-width: 100px; }
         
-        .btn-imprimir { background: #007bff; color: white; }
         .btn-editar { background: #ffc107; color: #000; }
-        .btn-excluir { background: #dc3545; color: white; }
         .btn-compartilhar { background: #25D366; color: white; transition: 0.2s; }
         .btn-compartilhar:hover { background: #128C7E; }
-        .btn-compartilhar:disabled { background: #999; cursor: not-allowed; }
+        .btn-imprimir { background: #007bff; color: white; }
+        .btn-excluir { background: #dc3545; color: white; }
         
+        .caixa-pago { display: flex; align-items: center; gap: 6px; font-weight: bold; font-size: 14px; padding: 8px 12px; border-radius: 5px; cursor: pointer; border: 1px solid #ccc; background: #fff; transition: 0.2s; }
+        .caixa-pago:hover { background: #f0f0f0; }
+        .caixa-pago input[type="checkbox"] { transform: scale(1.3); cursor: pointer; margin: 0; }
+        .caixa-pago.ativo { border-color: #28a745; color: #28a745; background: #e7f3eb; }
+
         #areaImpressaoGeral { display: none; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
         table, th, td { border: 1px solid black; }
@@ -113,7 +116,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, getDocs, query, orderBy, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, query, orderBy, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCwLzjKJXDCf-9UNNT1X5fzvEgFIc1Hh24",
@@ -131,7 +134,9 @@
         let filtrados = [];
         let clientesParaImprimir = [];
 
-        document.getElementById('filtroData').value = new Date().toISOString().split('T')[0];
+        // GERA DATA LOCAL PARA O CAMPO DE FILTRO
+        const hoje = new Date();
+        document.getElementById('filtroData').value = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
 
         async function carregarRomaneios() {
             try {
@@ -155,7 +160,13 @@
             const dataBusca = document.getElementById('filtroData').value;
             
             filtrados = todosRomaneios.filter(r => {
-                const dataDoc = r.dataSalva ? r.dataSalva.split('T')[0] : "";
+                let dataDoc = "";
+                if (r.dataSalva) {
+                    // Extrai a data local para não ter erro de fuso horário
+                    const dObj = new Date(r.dataSalva);
+                    dataDoc = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+                }
+
                 const dataOk = dataBusca ? dataDoc === dataBusca : true;
                 const motoristaOk = r.motorista && r.motorista.toLowerCase().includes(motoristaBusca);
                 return dataOk && motoristaOk;
@@ -169,8 +180,12 @@
 
             listaDiv.innerHTML = filtrados.map(r => {
                 const nomesClientes = r.clientes ? r.clientes.map(c => c.nome).join(', ') : 'Sem Cliente';
+                const isPago = r.pago ? 'checked' : '';
+                const classeAtiva = r.pago ? 'ativo' : '';
+                const classeCard = r.pago ? 'romaneio-pago' : '';
+
                 return `
-                <div class="card-romaneio">
+                <div class="card-romaneio ${classeCard}">
                     <div class="info-viagem">
                         <b>👥 ${nomesClientes}</b> <span class="valor-badge">💰 R$ ${parseFloat(r.valorTotal || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
                         <div style="margin-top: 5px;">📅 ${new Date(r.dataSalva).toLocaleDateString('pt-BR')}</div>
@@ -178,14 +193,32 @@
                     </div>
                     <div class="acoes-buttons">
                         <button class="btn-editar" onclick="window.editarRomaneio('${r.id}')">✏️ Editar</button>
-                        <button class="btn-compartilhar" onclick="window.compartilharRomaneio('${r.id}', event)"><i class="fa-solid fa-share-nodes"></i> Enviar PDF</button>
+                        <button class="btn-compartilhar" onclick="window.compartilharRomaneio('${r.id}', event)"><i class="fa-solid fa-share-nodes"></i> PDF</button>
                         <button class="btn-imprimir" onclick="window.gerarViaRomaneio('${r.id}')">🖨️ Imprimir</button>
                         <button class="btn-excluir" onclick="window.excluirRomaneio('${r.id}')">🗑️ Excluir</button>
+                        
+                        <label class="caixa-pago ${classeAtiva}">
+                            <input type="checkbox" ${isPago} onchange="window.marcarComoPago('${r.id}', this.checked)">
+                            Pago
+                        </label>
                     </div>
                 </div>
                 `;
             }).join('');
         }
+
+        window.marcarComoPago = async (id, statusAtual) => {
+            try {
+                await updateDoc(doc(db, "romaneios", id), { pago: statusAtual });
+                const romaneioIndex = todosRomaneios.findIndex(rom => rom.id === id);
+                if(romaneioIndex !== -1) todosRomaneios[romaneioIndex].pago = statusAtual;
+                filtrar();
+            } catch (error) {
+                console.error("Erro ao atualizar pagamento:", error);
+                alert("Erro ao salvar o status. Tente novamente.");
+                filtrar(); 
+            }
+        };
 
         window.editarRomaneio = (id) => {
             const r = todosRomaneios.find(rom => rom.id === id);
@@ -210,7 +243,7 @@
 
             const btn = event.currentTarget;
             const originalHTML = btn.innerHTML;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Gerando...';
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ...';
             btn.disabled = true;
 
             try {
@@ -296,7 +329,6 @@
                 const pdfBlob = doc.output('blob');
                 const file = new File([pdfBlob], nomeDoArquivo, { type: 'application/pdf' });
 
-                // TENTA ABRIR O MENU NATIVO DE COMPARTILHAMENTO
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     try {
                         await navigator.share({
@@ -305,18 +337,16 @@
                             text: `Segue o romaneio do cliente: ${nomesClientesParaArquivo.replace(/_/g, ', ')}`
                         });
                     } catch (shareError) {
-                        // Se o usuário cancelar a ação, não faz nada
-                        console.log("Compartilhamento cancelado ou falhou", shareError);
+                        console.log("Compartilhamento cancelado", shareError);
                     }
                 } else {
-                    // PLANO B: FAZ DOWNLOAD AUTOMÁTICO SE O MENU NÃO ABRIR
                     doc.save(nomeDoArquivo);
-                    alert(`O menu de aplicativos não está disponível neste aparelho. O arquivo "${nomeDoArquivo}" foi baixado em vez disso!`);
+                    alert(`O arquivo "${nomeDoArquivo}" foi baixado.`);
                 }
 
             } catch (error) {
                 console.error(error);
-                alert("Erro ao tentar gerar o PDF nativo.");
+                alert("Erro ao tentar gerar o PDF.");
             } finally {
                 btn.innerHTML = originalHTML;
                 btn.disabled = false;
@@ -355,10 +385,8 @@
             clientesParaImprimir.sort((a, b) => a.ordemImpressao - b.ordemImpressao);
             const area = document.getElementById('areaImpressaoGeral');
             
-            let somaGeralLista = 0;
-            clientesParaImprimir.forEach(c => { somaGeralLista += c.produtos.reduce((acc, p) => acc + parseFloat(p.totalCalculado || 0), 0); });
-            
-            let html = `<div style="text-align:center; margin-bottom:30px; border-bottom: 3px double #000;"><h1>RESUMO GERAL DE CARGA</h1><h2 style="color:#28a745;">VALOR TOTAL DA LISTA: R$ ${somaGeralLista.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</h2></div>`;
+            // Alterado: Removida a exibição do total da lista do cabeçalho
+            let html = `<div style="text-align:center; margin-bottom:30px; border-bottom: 3px double #000;"><h1>RESUMO GERAL DE CARGA</h1></div>`;
 
             clientesParaImprimir.forEach(cliente => {
                 html += `
