@@ -8,75 +8,32 @@
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/x-icon" href="icon.ico">
     <style>
-        /* Novo layout flexível para encaixar a barra lateral */
-        .layout-wrapper {
-            display: flex;
-            gap: 20px;
-            max-width: 1100px;
-            margin: 20px auto;
-            padding: 0 20px;
-            align-items: flex-start;
-        }
+        .layout-wrapper { display: flex; gap: 20px; max-width: 1100px; margin: 20px auto; padding: 0 20px; align-items: flex-start; }
+        .sidebar-resumo { flex: 0 0 280px; background: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
+        .sidebar-resumo h3 { margin-top: 0; font-size: 16px; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px; text-align: center; }
+        .item-motorista { display: flex; justify-content: space-between; align-items: center; padding: 12px 5px; border-bottom: 1px solid #f0f0f0; font-size: 14px; transition: background 0.2s; border-radius: 4px; cursor: pointer; }
+        .item-motorista:hover { background-color: #f8f9fa; }
+        .item-motorista:last-child { border-bottom: none; }
+        .item-motorista strong { color: #555; font-size: 13px; }
+        .layout-wrapper .container { margin: 0; flex: 1; max-width: none; padding: 25px; }
+        
+        .btn-geral { background: #17a2b8; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; transition: background 0.2s; }
+        .btn-geral:hover { background: #138496; }
+        
+        .lista-despesas-modal { margin-top: 20px; border-top: 2px solid #eee; padding-top: 15px; max-height: 250px; overflow-y: auto; }
+        .item-despesa-lista { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 8px 5px; border-bottom: 1px dashed #ccc; }
+        
+        .btn-acao-lista { border: none; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; transition: 0.2s; }
+        .btn-acao-lista.edit { background: #ffc107; color: #000; }
+        .btn-acao-lista.del { background: #dc3545; color: white; }
 
-        /* Estilo da nova barra lateral de resumo */
-        .sidebar-resumo {
-            flex: 0 0 280px; /* Largura fixa da barra lateral */
-            background: #ffffff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
+        .tabela-detalhes { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        .tabela-detalhes th { text-align: left; padding: 10px; background: #f4f4f4; border-bottom: 2px solid #ddd; }
+        .tabela-detalhes td { padding: 10px; border-bottom: 1px solid #eee; }
 
-        .sidebar-resumo h3 {
-            margin-top: 0;
-            font-size: 16px;
-            color: #333;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 10px;
-            text-align: center;
-        }
-
-        .item-motorista {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 14px;
-        }
-
-        .item-motorista:last-child {
-            border-bottom: none;
-        }
-
-        .item-motorista strong {
-            color: #555;
-            font-size: 13px;
-        }
-
-        .item-motorista span {
-            font-weight: bold;
-            color: #007bff;
-        }
-
-        /* Ajustes no container original para se adaptar ao novo layout */
-        .layout-wrapper .container {
-            margin: 0;
-            flex: 1; /* Ocupa o resto do espaço */
-            max-width: none;
-            padding: 25px;
-        }
-
-        /* Responsividade para celular (empilha os blocos) */
         @media (max-width: 768px) {
-            .layout-wrapper {
-                flex-direction: column-reverse; /* Coloca os cards principais em cima e o resumo embaixo */
-            }
-            .sidebar-resumo {
-                width: 100%;
-                box-sizing: border-box;
-                flex: none;
-            }
+            .layout-wrapper { flex-direction: column-reverse; }
+            .sidebar-resumo { width: 100%; box-sizing: border-box; flex: none; }
         }
     </style>
 </head>
@@ -111,15 +68,15 @@
                 </div>
             </div>
             
-            <p style="color: #666; font-size: 14px; margin-top: 5px; border-bottom: 2px solid #eee; padding-bottom: 15px;">Dados sincronizados com o banco de dados em tempo real.</p>
+            <p style="color: #666; font-size: 14px; margin-top: 5px; border-bottom: 2px solid #eee; padding-bottom: 15px;">Clique no motorista para ver/registrar despesas dele.</p>
 
             <div class="dashboard-grid">
                 <div class="card card-faturado">
-                    <h3>Total Faturado (Vendas)</h3>
+                    <h3>Total Faturado Líquido</h3>
                     <h2 id="cardFaturado">R$ 0,00</h2>
                 </div>
                 <div class="card card-despesa">
-                    <h3>Total Despesas (Contas)</h3>
+                    <h3>Despesas Fixas do Dia</h3>
                     <h2 id="cardDespesas">R$ 0,00</h2>
                 </div>
                 <div class="card card-saldo">
@@ -129,8 +86,43 @@
             </div>
 
             <div class="botoes-acao" style="margin-top: 30px; display: flex; gap: 15px; flex-wrap: wrap;">
-                <button id="btnAbrirModalDespesa" style="flex: 1; min-width: 200px;">➕ Registrar Nova Despesa</button>
+                <button id="btnAbrirModalDespesa" style="flex: 1; min-width: 200px;">➕ Registrar Despesa Fixa</button>
                 <button id="btnAbrirModalDetalhes" class="btn-secondary" style="flex: 1; min-width: 200px;">📄 Ver Detalhes do Dia</button>
+                <button id="btnRelatorioGeral" class="btn-geral" style="flex: 1; min-width: 200px;">📊 Relatório Geral</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalDespesaMotorista" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <span class="modal-close" id="btnCloseMotorista">&times;</span>
+            <h2 id="tituloModalMotorista">Despesa: Motorista</h2>
+            <form id="formDespesaMotorista">
+                <input type="hidden" id="nomeMotoristaHidden">
+                <input type="hidden" id="idDespesaEditando">
+                <div class="form-group">
+                    <label>Descrição:</label>
+                    <input type="text" id="descDespesaMotorista" required>
+                </div>
+                <div class="form-group">
+                    <label>Valor (R$):</label>
+                    <input type="number" id="valorDespesaMotorista" step="0.01" required>
+                </div>
+                <button type="submit" id="btnSalvarDespesaMotorista" style="background: #dc3545;">Salvar Despesa</button>
+            </form>
+            <div class="lista-despesas-modal">
+                <h4>Despesas de Hoje:</h4>
+                <div id="corpoListaDespesasMotorista"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalDetalhesDia" class="modal-overlay" style="display: none;">
+        <div class="modal-content modal-grande">
+            <span class="modal-close" id="btnCloseModalDetalhes">&times;</span>
+            <h2>📄 Detalhes de: <span id="dataModalDetalhes">--/--/----</span></h2>
+            <div style="max-height: 450px; overflow-y: auto;">
+                <div id="conteudoModalDetalhes"></div>
             </div>
         </div>
     </div>
@@ -138,33 +130,33 @@
     <div id="modalNovaDespesa" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <span class="modal-close" id="btnCloseModalDespesa">&times;</span>
-            <h2>➕ Registrar Nova Despesa</h2>
+            <h2>➕ Registrar Despesa Fixa</h2>
             <form id="formNovaDespesa">
-                <div class="form-group">
-                    <label>Descrição:</label>
-                    <input type="text" id="despesaDescricao" placeholder="Ex: Combustível" required>
-                </div>
-                <div class="form-group">
-                    <label>Valor (R$):</label>
-                    <input type="number" id="despesaValor" step="0.01" required>
-                </div>
-                <p><strong>Data:</strong> <span id="dataModalDespesa">--/--/----</span></p>
-                <button type="submit" id="btnSalvarDespesa">Salvar no Banco</button>
+                <input type="hidden" id="idDespesaFixaEditando">
+                <div class="form-group"><label>Descrição:</label><input type="text" id="despesaDescricao" required></div>
+                <div class="form-group"><label>Valor (R$):</label><input type="number" id="despesaValor" step="0.01" required></div>
+                <button type="submit" id="btnSalvarDespesaFixa">Salvar no Banco</button>
             </form>
         </div>
     </div>
 
-    <div id="modalDetalhesDia" class="modal-overlay" style="display: none;">
+    <div id="modalRelatorioGeral" class="modal-overlay" style="display: none;">
         <div class="modal-content modal-grande">
-            <span class="modal-close" id="btnCloseModalDetalhes">&times;</span>
-            <h2>📄 Detalhes do Dia: <span id="dataModalDetalhes">--/--/----</span></h2>
-            <div id="conteudoModalDetalhes"></div>
+            <span class="modal-close" id="btnCloseGeral">&times;</span>
+            <h2>📊 Relatório de Saldo Geral</h2>
+            <div style="max-height: 400px; overflow-y: auto;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead><tr style="border-bottom: 2px solid #ddd;"><th style="padding:10px">Data</th><th style="padding:10px">Saldo Líquido</th></tr></thead>
+                    <tbody id="tabelaGeralCorpo"></tbody>
+                    <tfoot><tr style="background:#f9f9f9; font-weight:bold;"><td style="padding:10px">TOTAL ACUMULADO</td><td style="padding:10px" id="totalGeralRodape">R$ 0,00</td></tr></tfoot>
+                </table>
+            </div>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, getDocs, addDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, addDoc, query, where, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCwLzjKJXDCf-9UNNT1X5fzvEgFIc1Hh24",
@@ -179,137 +171,316 @@
         const db = getFirestore(app);
 
         const filtroData = document.getElementById('filtroData');
+        
         const formatarMoeda = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        
+        const formatarColorido = (v) => {
+            let num = Number(v);
+            if (Math.abs(num) < 0.001) num = 0;
+            const strMoeda = formatarMoeda(num);
+            
+            if (num > 0) return `<span style="color: #28a745; font-weight: bold;">${strMoeda}</span>`;
+            if (num < 0) return `<span style="color: #dc3545; font-weight: bold;">${strMoeda}</span>`;
+            return `<span style="color: #007bff; font-weight: bold;">${strMoeda}</span>`;
+        };
 
-        // --- FUNÇÃO PARA ATUALIZAR DASHBOARD E BARRA LATERAL ---
+        // --- ATUALIZAR DASHBOARD ---
         async function atualizarDashboard() {
             const dataISO = filtroData.value;
             if (!dataISO) return;
 
             try {
-                // 1. Buscar Romaneios do Dia (Faturamento e Resumo por Motorista)
-                const qRomaneios = query(collection(db, "romaneios"));
-                const snapRomaneios = await getDocs(qRomaneios);
-                
-                let faturado = 0;
-                let romaneiosDoDia = [];
-                let resumoMotoristas = {}; // Objeto para armazenar as somas
+                const snapRomaneios = await getDocs(collection(db, "romaneios"));
+                let statsMotoristas = {}; 
 
                 snapRomaneios.forEach(doc => {
                     const r = doc.data();
-                    
-                    if (r.dataSalva && r.dataSalva.startsWith(dataISO)) {
-                        const valorRomaneio = parseFloat(r.valorTotal || 0);
-                        faturado += valorRomaneio;
-                        romaneiosDoDia.push(r);
-
-                        // Agrupar valores por motorista
-                        const nomeMotorista = r.motorista ? r.motorista.toUpperCase() : "DESCONHECIDO";
-                        if (!resumoMotoristas[nomeMotorista]) {
-                            resumoMotoristas[nomeMotorista] = 0;
+                    if (r.dataSalva) {
+                        // Extrai a data local para não ter erro de fuso horário
+                        const dObj = new Date(r.dataSalva);
+                        const rDataLocal = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+                        
+                        if (rDataLocal === dataISO) {
+                            const valor = parseFloat(r.valorTotal || 0);
+                            const nome = r.motorista ? r.motorista.toUpperCase() : "DESCONHECIDO";
+                            
+                            if (!statsMotoristas[nome]) {
+                                statsMotoristas[nome] = { bruto: 0, despesas: 0, liquido: 0 };
+                            }
+                            statsMotoristas[nome].bruto += valor;
+                            statsMotoristas[nome].liquido += valor; 
                         }
-                        resumoMotoristas[nomeMotorista] += valorRomaneio;
                     }
                 });
 
-                // 2. Buscar Despesas do Dia
                 const qDespesas = query(collection(db, "despesas"), where("data", "==", dataISO));
                 const snapDespesas = await getDocs(qDespesas);
-                let despesasTotal = 0;
-                let despesasDoDia = [];
+                
+                let despesasFixasTotal = 0;
+                let despesasFixasDoDia = [];
 
                 snapDespesas.forEach(doc => {
                     const d = doc.data();
-                    despesasTotal += parseFloat(d.valor);
-                    despesasDoDia.push(d);
+                    const valor = parseFloat(d.valor);
+
+                    if (d.motorista) {
+                        const nomeM = d.motorista.toUpperCase();
+                        if (!statsMotoristas[nomeM]) {
+                            statsMotoristas[nomeM] = { bruto: 0, despesas: 0, liquido: 0 };
+                        }
+                        statsMotoristas[nomeM].despesas += valor;
+                        statsMotoristas[nomeM].liquido -= valor; 
+                    } else {
+                        despesasFixasTotal += valor;
+                        despesasFixasDoDia.push({ ...d, id: doc.id }); 
+                    }
                 });
 
-                // 3. Atualizar Interface - Cards Principais
-                document.getElementById('cardFaturado').textContent = formatarMoeda(faturado);
-                document.getElementById('cardDespesas').textContent = formatarMoeda(despesasTotal);
-                document.getElementById('cardSaldo').textContent = formatarMoeda(faturado - despesasTotal);
+                let faturadoLiquido = 0;
+                Object.values(statsMotoristas).forEach(m => faturadoLiquido += m.liquido);
 
-                // 4. Atualizar Interface - Barra Lateral de Motoristas
+                document.getElementById('cardFaturado').innerHTML = formatarColorido(faturadoLiquido);
+                document.getElementById('cardDespesas').innerHTML = formatarColorido(-despesasFixasTotal);
+                document.getElementById('cardSaldo').innerHTML = formatarColorido(faturadoLiquido - despesasFixasTotal);
+
                 const listaUI = document.getElementById('listaResumoMotoristas');
                 listaUI.innerHTML = '';
-                const motoristasNomes = Object.keys(resumoMotoristas).sort();
+                Object.keys(statsMotoristas).sort().forEach(moto => {
+                    const m = statsMotoristas[moto];
+                    const div = document.createElement('div');
+                    div.className = 'item-motorista';
+                    div.innerHTML = `<strong>🚚 ${moto}</strong> ${formatarColorido(m.liquido)}`;
+                    div.onclick = () => abrirModalDespesaMotorista(moto);
+                    listaUI.appendChild(div);
+                });
 
-                if (motoristasNomes.length > 0) {
-                    motoristasNomes.forEach(motorista => {
-                        listaUI.innerHTML += `
-                            <div class="item-motorista">
-                                <strong>🚚 ${motorista}</strong>
-                                <span>${formatarMoeda(resumoMotoristas[motorista])}</span>
-                            </div>
-                        `;
-                    });
-                } else {
-                    listaUI.innerHTML = '<div style="text-align: center; color: #999; padding: 15px 0; font-size: 13px;">Nenhum romaneio hoje.</div>';
-                }
+                window.dadosDia = { faturadoLiquido, despesasFixasTotal, statsMotoristas, despesasFixasDoDia };
 
-                // Guardar para o modal de detalhes
-                window.dadosDia = { faturado, despesasTotal, romaneiosDoDia, despesasDoDia };
-
-            } catch (e) { console.error("Erro ao buscar financeiro:", e); }
+            } catch (e) { console.error(e); }
         }
 
-        // --- SALVAR NOVA DESPESA NO FIREBASE ---
-        document.getElementById('formNovaDespesa').onsubmit = async (e) => {
-            e.preventDefault();
-            const btn = document.getElementById('btnSalvarDespesa');
-            btn.disabled = true;
-            btn.textContent = "Salvando...";
-
-            const novaDespesa = {
-                descricao: document.getElementById('despesaDescricao').value,
-                valor: parseFloat(document.getElementById('despesaValor').value),
-                data: filtroData.value,
-                criadoEm: new Date().toISOString()
-            };
-
-            try {
-                await addDoc(collection(db, "despesas"), novaDespesa);
-                alert("Despesa salva com sucesso!");
-                document.getElementById('modalNovaDespesa').style.display = 'none';
-                document.getElementById('formNovaDespesa').reset();
-                atualizarDashboard();
-            } catch (e) { alert("Erro ao salvar despesa"); }
-            finally { 
-                btn.disabled = false; 
-                btn.textContent = "Salvar no Banco"; 
-            }
-        };
-
-        // --- LÓGICA DE MODAIS ---
-        document.getElementById('btnAbrirModalDespesa').onclick = () => {
-            if(!filtroData.value) return alert("Selecione uma data");
-            document.getElementById('dataModalDespesa').textContent = new Date(filtroData.value + 'T00:00:00').toLocaleDateString('pt-BR');
-            document.getElementById('modalNovaDespesa').style.display = 'block';
-        };
-
+        // --- VER DETALHES DO DIA ---
         document.getElementById('btnAbrirModalDetalhes').onclick = () => {
             if(!window.dadosDia) return alert("Carregando dados...");
             document.getElementById('dataModalDetalhes').textContent = new Date(filtroData.value + 'T00:00:00').toLocaleDateString('pt-BR');
             
-            let html = `<h3>Faturamento</h3><ul>`;
-            window.dadosDia.romaneiosDoDia.forEach(r => {
-                html += `<li>Motorista: ${r.motorista} - <strong>${formatarMoeda(r.valorTotal)}</strong></li>`;
+            let html = `<h4>📦 Entradas e Saldo por Motorista</h4>
+                        <table class="tabela-detalhes">
+                            <thead>
+                                <tr>
+                                    <th>Motorista</th>
+                                    <th>Faturado (Bruto)</th>
+                                    <th>Despesas</th>
+                                    <th>Líquido</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+            
+            const motoristasNomes = Object.keys(window.dadosDia.statsMotoristas).sort();
+            
+            motoristasNomes.forEach(moto => {
+                const m = window.dadosDia.statsMotoristas[moto];
+                html += `<tr>
+                            <td><strong>${moto}</strong></td>
+                            <td>${formatarColorido(m.bruto)}</td>
+                            <td>${formatarColorido(-m.despesas)}</td>
+                            <td>${formatarColorido(m.liquido)}</td>
+                         </tr>`;
             });
-            html += `</ul><hr><h3>Despesas</h3><ul>`;
-            window.dadosDia.despesasDoDia.forEach(d => {
-                html += `<li>${d.descricao}: <strong>${formatarMoeda(d.valor)}</strong></li>`;
+
+            if(motoristasNomes.length === 0) html += `<tr><td colspan="4">Nenhuma movimentação hoje.</td></tr>`;
+
+            html += `</tbody></table><br><h4>💸 Saídas (Despesas Fixas da Empresa)</h4>
+                     <table class="tabela-detalhes">
+                        <thead>
+                            <tr>
+                                <th>Descrição</th>
+                                <th>Valor</th>
+                                <th style="width: 80px; text-align: center;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+            window.dadosDia.despesasFixasDoDia.forEach(d => {
+                html += `<tr>
+                            <td>${d.descricao}</td>
+                            <td>${formatarColorido(-d.valor)}</td>
+                            <td style="text-align: center;">
+                                <button type="button" class="btn-acao-lista edit" onclick="editarDespesaFixa('${d.id}', '${d.descricao}', ${d.valor})" title="Editar">✏️</button>
+                                <button type="button" class="btn-acao-lista del" onclick="excluirDespesaFixa('${d.id}')" title="Excluir">🗑️</button>
+                            </td>
+                         </tr>`;
             });
-            html += `</ul>`;
+
+            if(window.dadosDia.despesasFixasDoDia.length === 0) html += `<tr><td colspan="3">Nenhuma despesa fixa hoje.</td></tr>`;
+
+            html += `</tbody></table>`;
             
             document.getElementById('conteudoModalDetalhes').innerHTML = html;
             document.getElementById('modalDetalhesDia').style.display = 'block';
         };
 
-        document.getElementById('btnCloseModalDespesa').onclick = () => document.getElementById('modalNovaDespesa').style.display = 'none';
+        window.excluirDespesaFixa = async (id) => {
+            if(!confirm("Tem certeza que deseja excluir esta despesa fixa?")) return;
+            try {
+                await deleteDoc(doc(db, "despesas", id));
+                await atualizarDashboard(); 
+                document.getElementById('btnAbrirModalDetalhes').click(); 
+            } catch(e) { alert("Erro ao excluir."); }
+        };
+
+        window.editarDespesaFixa = (id, desc, valor) => {
+            document.getElementById('despesaDescricao').value = desc;
+            document.getElementById('despesaValor').value = valor;
+            document.getElementById('idDespesaFixaEditando').value = id;
+            document.getElementById('btnSalvarDespesaFixa').textContent = "Atualizar Despesa";
+            
+            document.getElementById('modalDetalhesDia').style.display = 'none'; 
+            document.getElementById('modalNovaDespesa').style.display = 'block'; 
+        };
+
+        document.getElementById('btnAbrirModalDespesa').onclick = () => {
+            document.getElementById('idDespesaFixaEditando').value = '';
+            document.getElementById('formNovaDespesa').reset();
+            document.getElementById('btnSalvarDespesaFixa').textContent = "Salvar no Banco";
+            document.getElementById('modalNovaDespesa').style.display = 'block';
+        };
+
+        document.getElementById('formNovaDespesa').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btnSalvarDespesaFixa');
+            btn.disabled = true;
+            btn.textContent = "Aguarde...";
+
+            const idEdit = document.getElementById('idDespesaFixaEditando').value;
+            const dados = {
+                descricao: document.getElementById('despesaDescricao').value,
+                valor: parseFloat(document.getElementById('despesaValor').value),
+                data: filtroData.value
+            };
+
+            try {
+                if (idEdit) {
+                    await updateDoc(doc(db, "despesas", idEdit), dados);
+                } else {
+                    dados.criadoEm = new Date().toISOString(); 
+                    await addDoc(collection(db, "despesas"), dados);
+                }
+                
+                document.getElementById('modalNovaDespesa').style.display = 'none';
+                document.getElementById('formNovaDespesa').reset();
+                await atualizarDashboard();
+                
+                if(idEdit) document.getElementById('btnAbrirModalDetalhes').click();
+            } catch (e) { alert("Erro ao salvar despesa."); }
+            finally {
+                btn.disabled = false;
+                btn.textContent = "Salvar no Banco";
+            }
+        };
+
+        // --- ABRIR MODAL MOTORISTA E SALVAR ---
+        async function abrirModalDespesaMotorista(nome) {
+            document.getElementById('tituloModalMotorista').textContent = `Despesas de ${nome}`;
+            document.getElementById('nomeMotoristaHidden').value = nome;
+            document.getElementById('idDespesaEditando').value = '';
+            document.getElementById('formDespesaMotorista').reset();
+            const corpoLista = document.getElementById('corpoListaDespesasMotorista');
+            corpoLista.innerHTML = 'Carregando...';
+            document.getElementById('modalDespesaMotorista').style.display = 'block';
+
+            try {
+                const q = query(collection(db, "despesas"), where("data", "==", filtroData.value), where("motorista", "==", nome));
+                const snap = await getDocs(q);
+                corpoLista.innerHTML = '';
+                if (snap.empty) corpoLista.innerHTML = '<p style="color:#999; font-size:12px;">Sem despesas hoje.</p>';
+                snap.forEach(docSnap => {
+                    const d = docSnap.data();
+                    const id = docSnap.id;
+                    corpoLista.innerHTML += `
+                        <div class="item-despesa-lista">
+                            <div style="flex:1;"><span>${d.descricao}</span><br>${formatarColorido(-d.valor)}</div>
+                            <div style="display:flex; gap: 5px;">
+                                <button type="button" class="btn-acao-lista edit" onclick="editarDespesaNaLista('${id}', '${d.descricao}', ${d.valor})">✏️</button>
+                                <button type="button" class="btn-acao-lista del" onclick="excluirDespesaDaLista('${id}')">🗑️</button>
+                            </div>
+                        </div>`;
+                });
+            } catch (e) { corpoLista.innerHTML = 'Erro ao carregar.'; }
+        }
+
+        window.excluirDespesaDaLista = async (id) => {
+            if(!confirm("Excluir despesa do motorista?")) return;
+            await deleteDoc(doc(db, "despesas", id));
+            abrirModalDespesaMotorista(document.getElementById('nomeMotoristaHidden').value);
+            atualizarDashboard();
+        };
+
+        window.editarDespesaNaLista = (id, desc, valor) => {
+            document.getElementById('descDespesaMotorista').value = desc;
+            document.getElementById('valorDespesaMotorista').value = valor;
+            document.getElementById('idDespesaEditando').value = id;
+            document.getElementById('btnSalvarDespesaMotorista').textContent = "Atualizar Despesa";
+        };
+
+        document.getElementById('formDespesaMotorista').onsubmit = async (e) => {
+            e.preventDefault();
+            const nome = document.getElementById('nomeMotoristaHidden').value;
+            const idEdit = document.getElementById('idDespesaEditando').value;
+            const dados = {
+                descricao: document.getElementById('descDespesaMotorista').value,
+                valor: parseFloat(document.getElementById('valorDespesaMotorista').value),
+                motorista: nome,
+                data: filtroData.value
+            };
+            if(idEdit) await updateDoc(doc(db, "despesas", idEdit), dados);
+            else { dados.criadoEm = new Date().toISOString(); await addDoc(collection(db, "despesas"), dados); }
+            abrirModalDespesaMotorista(nome);
+            atualizarDashboard();
+        };
+
+        // --- RELATÓRIO GERAL ---
+        document.getElementById('btnRelatorioGeral').onclick = async () => {
+            const snapR = await getDocs(collection(db, "romaneios"));
+            const snapD = await getDocs(collection(db, "despesas"));
+            let saldoD = {};
+            
+            snapR.forEach(doc => { 
+                if(doc.data().dataSalva) { 
+                    const dObj = new Date(doc.data().dataSalva);
+                    const d = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+                    saldoD[d] = (saldoD[d]||0) + parseFloat(doc.data().valorTotal||0); 
+                }
+            });
+            
+            snapD.forEach(doc => { 
+                if(doc.data().data){ 
+                    const d = doc.data().data; 
+                    saldoD[d] = (saldoD[d]||0) - parseFloat(doc.data().valor||0); 
+                }
+            });
+            
+            const tbody = document.getElementById('tabelaGeralCorpo');
+            tbody.innerHTML = ''; let total = 0;
+            Object.keys(saldoD).sort().reverse().forEach(d => {
+                total += saldoD[d];
+                tbody.innerHTML += `<tr><td style="padding:10px">${d.split('-').reverse().join('/')}</td><td style="padding:10px;">${formatarColorido(saldoD[d])}</td></tr>`;
+            });
+            document.getElementById('totalGeralRodape').innerHTML = formatarColorido(total);
+            document.getElementById('modalRelatorioGeral').style.display = 'block';
+        };
+
+        // FECHAR MODAIS
+        document.getElementById('btnCloseMotorista').onclick = () => document.getElementById('modalDespesaMotorista').style.display = 'none';
+        document.getElementById('btnCloseGeral').onclick = () => document.getElementById('modalRelatorioGeral').style.display = 'none';
+        document.getElementById('btnCloseModalDespesa').onclick = () => { document.getElementById('modalNovaDespesa').style.display = 'none'; if(document.getElementById('idDespesaFixaEditando').value) document.getElementById('btnAbrirModalDetalhes').click(); };
         document.getElementById('btnCloseModalDetalhes').onclick = () => document.getElementById('modalDetalhesDia').style.display = 'none';
 
-        // Inicialização
-        filtroData.value = new Date().toISOString().split('T')[0];
+        // GERA DATA LOCAL PARA O CAMPO DE FILTRO
+        const hoje = new Date();
+        const dataLocal = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+        
+        filtroData.value = dataLocal;
         filtroData.onchange = atualizarDashboard;
         atualizarDashboard();
     </script>
