@@ -11,7 +11,8 @@
         .bloco-cliente { background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
         .bloco-cliente table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9em; }
         .bloco-cliente th, .bloco-cliente td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-        .btn-danger { background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .btn-danger { background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-warning { background-color: #ffc107; color: #000; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px; font-weight: bold; }
         
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); }
         .modal-content { background-color: #fff; margin: 10% auto; padding: 20px; border-radius: 8px; width: 80%; max-width: 500px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
@@ -34,7 +35,10 @@
         <div id="avisoEdicao" style="display:none; background:#fff3cd; color:#856404; padding:10px; border-radius:5px; margin-bottom:10px; border:1px solid #ffeeba; font-weight:bold; text-align:center;">
             ⚠️ MODO EDIÇÃO: Você está alterando um romaneio existente.
         </div>
-        <div id="infoViagem">Carregando dados da viagem...</div>
+        
+        <div id="infoViagem" style="background: #e9ecef; padding: 15px; border-radius: 8px; font-size: 1.1em; line-height: 1.5;">
+            Carregando dados da viagem...
+        </div>
         <hr>
 
         <form id="formAddCliente">
@@ -54,12 +58,53 @@
         </button>
     </div>
 
-    <div id="modalProduto" class="modal">
+    <div id="modalProduto" class="modal" style="z-index: 1005;">
         <div class="modal-content">
-            <span class="fechar-modal" id="btnFecharModal">&times;</span>
+            <span class="fechar-modal" id="btnFecharModalProduto">&times;</span>
             <h3>Escolha o Produto</h3>
             <input type="text" id="inputBusca" class="search-box" placeholder="Digite o nome do produto...">
             <ul id="listaProdutosModal" class="lista-selecao-modal"></ul>
+        </div>
+    </div>
+
+    <div id="modalEditarProduto" class="modal">
+        <div class="modal-content">
+            <span class="fechar-modal" onclick="fecharModalEditar()">&times;</span>
+            <h3>✏️ Editar Produto</h3>
+            <form id="formEditarProduto" style="display: flex; flex-direction: column; gap: 10px;">
+                <input type="hidden" id="editIdxCli">
+                <input type="hidden" id="editIdxProd">
+
+                <div style="background: #f1f1f1; padding: 10px; border-radius: 4px; margin-bottom: 10px; display: flex; flex-direction: column;">
+                    <label style="font-weight: bold; font-size: 14px; margin-bottom: 5px;">Produto:</label>
+                    <input type="hidden" class="produto-nome-hidden" required>
+                    <button type="button" class="btn-escolher" onclick="abrirModal(this.closest('form'))">Escolher</button>
+                </div>
+
+                <label style="font-weight: bold; font-size: 14px;">Fornecedor:</label>
+                <input type="text" id="editFornecedor" class="search-box" style="margin-bottom: 5px;">
+
+                <div style="display: flex; gap: 10px;">
+                    <div style="flex: 1;">
+                        <label style="font-weight: bold; font-size: 14px;">Quantidade:</label>
+                        <input type="number" id="editQtd" class="search-box" style="margin-bottom: 5px;" min="0.1" step="0.1" oninput="calcularVolumeEdit()">
+                    </div>
+                    <div style="flex: 1;">
+                        <label style="font-weight: bold; font-size: 14px;">Modo:</label>
+                        <select id="editModo" class="search-box" style="margin-bottom: 5px;" onchange="calcularVolumeEdit()">
+                            <option value="X1">X1</option><option value="X1.5">X1.5</option><option value="X2">X2</option>
+                            <option value="÷2">÷2</option><option value="÷3">÷3</option><option value="÷5">÷5</option>
+                        </select>
+                    </div>
+                </div>
+
+                <label style="font-weight: bold; font-size: 14px;">Volume Calculado:</label>
+                <input type="number" id="editVolumes" class="search-box" style="margin-bottom: 15px; background: #e9ecef; cursor: not-allowed; font-weight: bold;" readonly>
+
+                <button type="submit" style="background-color: #ffc107; color: #000; padding: 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px;">
+                    SALVAR ALTERAÇÕES
+                </button>
+            </form>
         </div>
     </div>
 
@@ -88,8 +133,12 @@
 
         if (viagemAtual.editandoId) {
             document.getElementById('avisoEdicao').style.display = 'block';
+            if(viagemAtual.data && !viagemAtual.dataOriginal) {
+                viagemAtual.dataOriginal = viagemAtual.data; 
+            }
         }
 
+        // --- CONTROLE DOS MODAIS ---
         window.abrirModal = (formElement) => {
             formAlvo = formElement;
             document.getElementById('modalProduto').style.display = "block";
@@ -98,8 +147,10 @@
             filtrarProdutos();
         };
 
-        document.getElementById('btnFecharModal').onclick = () => { document.getElementById('modalProduto').style.display = "none"; };
+        document.getElementById('btnFecharModalProduto').onclick = () => { document.getElementById('modalProduto').style.display = "none"; };
         document.getElementById('inputBusca').onkeyup = filtrarProdutos;
+
+        window.fecharModalEditar = () => { document.getElementById('modalEditarProduto').style.display = "none"; };
 
         function filtrarProdutos() {
             const termo = document.getElementById('inputBusca').value.toLowerCase();
@@ -141,7 +192,6 @@
             const formAdd = document.getElementById('formAddCliente');
             const select = document.getElementById('selectCliente');
             
-            // Bloqueio de 1 Cliente por Romaneio
             if (viagemAtual.clientes.length >= 1) {
                 formAdd.style.display = 'none';
             } else {
@@ -157,15 +207,107 @@
 
         function calcularValorTotal() {
             let totalGeral = 0;
+            let totalVolumes = 0;
+            let totalLinhas = 0;
+
             viagemAtual.clientes.forEach(cliente => {
-                cliente.produtos.forEach(produto => { totalGeral += parseFloat(produto.totalCalculado) || 0; });
+                cliente.produtos.forEach(produto => { 
+                    totalGeral += parseFloat(produto.totalCalculado) || 0; 
+                    totalVolumes += parseFloat(produto.volumes) || 0;
+                    totalLinhas += 1;
+                });
             });
+
             viagemAtual.valorTotal = totalGeral.toFixed(2);
-            document.getElementById('infoViagem').innerHTML = `Motorista: <strong>${viagemAtual.motorista}</strong> | Rota: <strong>${viagemAtual.rota}</strong> | Total: <strong>R$ ${viagemAtual.valorTotal.replace('.', ',')}</strong>`;
+            viagemAtual.totalVolumes = totalVolumes.toFixed(1);
+            viagemAtual.totalLinhas = totalLinhas;
+            
+            document.getElementById('infoViagem').innerHTML = `
+                <div>Motorista: <strong>${viagemAtual.motorista || 'N/A'}</strong> | Rota: <strong>${viagemAtual.rota || 'N/A'}</strong></div>
+                <div style="margin-top: 5px; color: #333;">
+                    Qtd Linhas: <strong>${totalLinhas}</strong> | 
+                    Total Volumes: <strong>${totalVolumes.toFixed(1)}</strong> | 
+                    Valor Total: <strong style="color: green;">R$ ${viagemAtual.valorTotal.replace('.', ',')}</strong>
+                </div>
+            `;
             
             localStorage.setItem('viagemAtual', JSON.stringify(viagemAtual));
         }
 
+        // --- FUNÇÕES DE EDIÇÃO NO MODAL ---
+        window.editarProduto = (cIdx, pIdx) => {
+            const produto = viagemAtual.clientes[cIdx].produtos[pIdx];
+
+            // Preenche os índices e campos
+            document.getElementById('editIdxCli').value = cIdx;
+            document.getElementById('editIdxProd').value = pIdx;
+            
+            // Configura o botão do Produto no Modal de Edição
+            const formEdit = document.getElementById('formEditarProduto');
+            formEdit.querySelector('.produto-nome-hidden').value = produto.nome;
+            const btnEscolher = formEdit.querySelector('.btn-escolher');
+            btnEscolher.textContent = produto.nome;
+            btnEscolher.classList.add('selecionado');
+
+            document.getElementById('editFornecedor').value = produto.fornecedor || "";
+            document.getElementById('editQtd').value = produto.qtd;
+            document.getElementById('editModo').value = produto.modoPreco;
+            document.getElementById('editVolumes').value = produto.volumes;
+
+            document.getElementById('modalEditarProduto').style.display = "block";
+        };
+
+        window.calcularVolumeEdit = () => {
+            const qtd = parseFloat(document.getElementById('editQtd').value) || 0;
+            const modo = document.getElementById('editModo').value;
+            let volume = qtd;
+
+            if (modo.startsWith('X')) {
+                const multi = parseFloat(modo.replace('X', ''));
+                volume = qtd * multi;
+            } else if (modo.startsWith('÷')) {
+                const divi = parseFloat(modo.replace('÷', ''));
+                if(divi !== 0) volume = qtd / divi;
+            }
+
+            document.getElementById('editVolumes').value = Number.isInteger(volume) ? volume : volume.toFixed(1);
+        };
+
+        document.getElementById('formEditarProduto').onsubmit = (e) => {
+            e.preventDefault();
+            
+            const cIdx = document.getElementById('editIdxCli').value;
+            const pIdx = document.getElementById('editIdxProd').value;
+            
+            const produtoAnterior = viagemAtual.clientes[cIdx].produtos[pIdx];
+            const vCaixa = parseFloat(produtoAnterior.valor || 0);
+            
+            const novoNome = document.getElementById('formEditarProduto').querySelector('.produto-nome-hidden').value;
+            const novaQtd = parseFloat(document.getElementById('editQtd').value);
+            const novoModo = document.getElementById('editModo').value;
+            
+            // Recalcula o total (dinheiro) baseado na nova qtd e modo
+            let novoTotal = vCaixa * novaQtd;
+            if (novoModo.startsWith('X')) novoTotal *= parseFloat(novoModo.replace('X', ''));
+            else if (novoModo.startsWith('÷')) novoTotal /= parseFloat(novoModo.replace('÷', ''));
+
+            // Atualiza os dados no array da viagem
+            viagemAtual.clientes[cIdx].produtos[pIdx] = {
+                ...produtoAnterior,
+                nome: novoNome,
+                fornecedor: document.getElementById('editFornecedor').value,
+                qtd: novaQtd,
+                modoPreco: novoModo,
+                volumes: parseFloat(document.getElementById('editVolumes').value),
+                totalCalculado: novoTotal.toFixed(2)
+            };
+
+            fecharModalEditar();
+            calcularValorTotal();
+            renderizarClientes();
+        };
+
+        // --- REMOVER E OUTROS CÁLCULOS ---
         window.removerProduto = (cIdx, pIdx) => { 
             viagemAtual.clientes[cIdx].produtos.splice(pIdx, 1); 
             calcularValorTotal(); 
@@ -209,7 +351,16 @@
                 const div = document.createElement('div');
                 div.className = 'bloco-cliente';
                 let rows = '';
+                
+                let volCliente = 0;
+                let valorCliente = 0;
+                let linhasCliente = 0;
+
                 cliente.produtos.forEach((p, idxProd) => {
+                    volCliente += parseFloat(p.volumes) || 0;
+                    valorCliente += parseFloat(p.totalCalculado) || 0;
+                    linhasCliente += 1;
+
                     rows += `<tr>
                         <td>${p.qtd}</td>
                         <td>${p.nome}</td>
@@ -218,11 +369,13 @@
                         <td>${p.modoPreco}</td>
                         <td>${p.volumes}</td>
                         <td><strong>R$ ${parseFloat(p.totalCalculado).toFixed(2).replace('.',',')}</strong></td>
-                        <td><button class="btn-danger" onclick="removerProduto(${idxCli}, ${idxProd})">X</button></td>
+                        <td style="white-space: nowrap;">
+                            <button type="button" class="btn-warning" onclick="editarProduto(${idxCli}, ${idxProd})">✏️</button>
+                            <button type="button" class="btn-danger" onclick="removerProduto(${idxCli}, ${idxProd})">X</button>
+                        </td>
                     </tr>`;
                 });
 
-                // NOVO FORMULÁRIO ESTICADO COM FLEXBOX
                 div.innerHTML = `
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <h3>${cliente.nome} <small style="color:green; font-size:12px;">(V. Caixa: R$ ${parseFloat(cliente.valorCaixa || 0).toFixed(2).replace('.',',')})</small></h3>
@@ -234,6 +387,14 @@
                                 <tr><th>Qtd.</th><th>Produto</th><th>Fornecedor</th><th>V. Caixa</th><th>Modo</th><th>Vol.</th><th>Total</th><th>Ação</th></tr>
                             </thead>
                             <tbody>${rows}</tbody>
+                            <tfoot>
+                                <tr style="background-color: #f8f9fa; font-weight: bold; border-top: 2px solid #ccc;">
+                                    <td colspan="5" style="text-align: right;">TOTAIS DA TABELA:</td>
+                                    <td style="color: #0056b3;">${volCliente.toFixed(1)}</td>
+                                    <td style="color: green;">R$ ${valorCliente.toFixed(2).replace('.',',')}</td>
+                                    <td style="color: #d32f2f;">Linhas: ${linhasCliente}</td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                     
@@ -252,7 +413,7 @@
                         
                         <div style="display:flex; flex-direction:column; flex: 1; min-width: 80px;">
                             <label style="font-size:12px; font-weight:bold; margin-bottom:5px; color:#555;">Qtd:</label>
-                            <input type="number" class="produto-qtd" value="1" min="1" step="0.5" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box;" oninput="calcularVolume(this.closest('form'))">
+                            <input type="number" class="produto-qtd" value="1" min="0.1" step="0.1" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px; box-sizing:border-box;" oninput="calcularVolume(this.closest('form'))">
                         </div>
                         
                         <div style="display:flex; flex-direction:column; flex: 1; min-width: 80px;">
@@ -268,13 +429,12 @@
                             <input type="number" class="produto-volumes" value="1" step="0.1" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px; background:#e9ecef; color:#495057; cursor:not-allowed; box-sizing:border-box; font-weight:bold;" readonly tabindex="-1">
                         </div>
                         
-                        <button type="submit" style="flex: 1.5; min-width: 120px; background:#28a745; color:#fff; border:none; padding:11px 15px; border-radius:4px; cursor:pointer; font-weight:bold; height: 39px;">ADICIONAR</button>
+                        <button type="submit" style="flex: 1.5; min-width: 120px; background:#28a745; color:#fff; border:none; padding:11px 15px; border-radius:4px; cursor:pointer; font-weight:bold; height: 39px; transition: 0.3s;">ADICIONAR</button>
                     </form>`;
                 container.appendChild(div);
             });
         };
 
-        // --- ADIÇÃO DE CLIENTE À ROTA ---
         document.getElementById('formAddCliente').onsubmit = (e) => {
             e.preventDefault();
             const nomeSel = document.getElementById('selectCliente').value;
@@ -287,7 +447,6 @@
             }
         };
 
-        // --- SUBMISSÃO DA INSERÇÃO DO PRODUTO ---
         document.getElementById('listaClientesContainer').addEventListener('submit', (e) => {
             if (!e.target.classList.contains('formAddProduto')) return;
             e.preventDefault();
@@ -316,11 +475,15 @@
                 totalCalculado: total.toFixed(2)
             });
 
+            form.querySelector('.fornecedor-input').value = "";
+            form.querySelector('.produto-qtd').value = "1";
+            form.querySelector('.modo-preco').value = "X1";
+            
+            calcularVolume(form);
             calcularValorTotal(); 
             renderizarClientes();
         });
 
-        // --- VALIDAÇÃO NO BOTÃO FINALIZAR ---
         document.getElementById('btnFinalizar').onclick = () => {
             if (viagemAtual.clientes.length === 0) {
                 alert("⚠️ Selecione um cliente para iniciar a carga.");
