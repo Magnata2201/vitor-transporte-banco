@@ -313,20 +313,13 @@
 
                     controleY = doc.lastAutoTable.finalY + 8;
                     
-                    // Cálculos Locais do Cliente
-                    const totalCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.totalCalculado || 0), 0);
+                    // Cálculos Locais do Cliente para somar no total geral
                     const volCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.volumes || 0), 0);
                     const linhasCli = cliente.produtos.length;
                     
                     // Soma aos totais globais
                     totalLinhasGeral += linhasCli;
                     totalVolumesGeral += volCli;
-
-                    // Adiciona Linhas e Volumes no PDF (esq) e Valor (dir)
-                    doc.setFontSize(11);
-                    doc.setFont("helvetica", "bold");
-                    doc.text(`Linhas: ${linhasCli}   |   Volumes: ${volCli.toFixed(1)}`, 10, controleY);
-                    doc.text(`Total do Cliente: R$ ${totalCli.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, 200, controleY, { align: "right" });
                     
                     controleY += 10;
                 });
@@ -338,6 +331,7 @@
                 
                 // Adiciona Totais Gerais da Viagem no final do PDF
                 doc.setFontSize(12);
+                doc.setFont("helvetica", "bold");
                 doc.text(`Qtd. Linhas: ${totalLinhasGeral}   |   Total Volumes: ${totalVolumesGeral.toFixed(1)}`, 10, controleY);
                 doc.setFontSize(14);
                 doc.text(`VALOR TOTAL DO ROMANEIO: R$ ${parseFloat(r.valorTotal || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, 200, controleY, { align: "right" });
@@ -458,11 +452,6 @@
             });
 
             r.clientes.forEach(cliente => {
-                // Cálculos Específicos do Cliente
-                const totalCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.totalCalculado || 0), 0);
-                const volCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.volumes || 0), 0);
-                const linhasCli = cliente.produtos.length;
-
                 html += `
                 <div class="quebra-pagina">
                     <div style="text-align:center; border-bottom:2px solid #000; margin-bottom:10px;">
@@ -495,11 +484,6 @@
                                 </tr>`).join('')}
                             </tbody>
                         </table>
-                        
-                        <div style="display:flex; justify-content:space-between; margin-top:10px; font-size:1.1em; border-top:1px solid #000; padding-top:5px;">
-                            <span><strong>Linhas: ${linhasCli} | Volumes: ${volCli.toFixed(1)}</strong></span>
-                            <span><strong>Total do Cliente: R$ ${totalCli.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></span>
-                        </div>
                     </div>
                     
                     <div style="margin-top:20px; display:flex; justify-content:space-between; align-items:center; font-size:1.2em; background:#f9f9f9; padding:10px; border: 1px solid #000;">
