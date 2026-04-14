@@ -35,8 +35,6 @@
             <button id="btnSalvarFirebase" style="flex: 1; padding: 20px; background: #28a745; color: white; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; font-size: 16px;">
                 💾 SALVAR ALTERAÇÕES E FINALIZAR
             </button>
-            
-            </button>
         </div>
     </div>
 
@@ -64,10 +62,22 @@
         }
 
         function renderizarPagina() {
+            // Define a data para exibição
+            let dataExibicao = viagemAtual.data || new Date().toLocaleDateString('pt-BR'); 
+            
+            // Se já tem data salva no banco, mostra ela convertida garantindo que está visualizando a data original
+            if (viagemAtual.dataSalva) {
+                // Tenta converter, se a data estiver corrompida, ele ignora e mostra o que tem
+                const d = new Date(viagemAtual.dataSalva);
+                if (!isNaN(d.getTime())) {
+                    dataExibicao = d.toLocaleDateString('pt-BR');
+                }
+            }
+
             // Cabeçalho
             document.getElementById('cabecalhoViagem').innerHTML = `
                 <p><strong>Motorista:</strong> ${viagemAtual.motorista.toUpperCase()} | <strong>Placa:</strong> ${viagemAtual.placa || '---'}</p>
-                <p><strong>Rota:</strong> ${viagemAtual.rota} | <strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
+                <p><strong>Rota:</strong> ${viagemAtual.rota} | <strong>Data:</strong> ${dataExibicao}</p>
                 <p><strong>Valor Total da Carga:</strong> R$ ${viagemAtual.valorTotal}</p>
             `;
 
@@ -93,9 +103,9 @@
                                     <td>${p.qtd}</td>
                                     <td>${p.nome}</td>
                                     <td>${p.fornecedor || '---'}</td>
-                                    <td>R$ ${p.valor}</td>
+                                    <td>R$ ${parseFloat(p.valor || 0).toFixed(2).replace('.', ',')}</td>
                                     <td>${p.modoPreco}</td>
-                                    <td>R$ ${p.totalCalculado}</td>
+                                    <td>R$ ${parseFloat(p.totalCalculado || 0).toFixed(2).replace('.', ',')}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -104,23 +114,25 @@
             `).join('');
         }
 
-        // LÓGICA DE SALVAMENTO SEM DUPLICAR
+        // LÓGICA DE SALVAMENTO BLINDADA PARA NÃO PERDER A DATA
         document.getElementById('btnSalvarFirebase').onclick = async function() {
             const btn = this;
             btn.disabled = true;
             btn.innerHTML = "⏳ Salvando...";
 
             try {
-                // Preparamos os dados (removendo IDs temporários do objeto para não sujar o banco)
-                const { editandoId, ...dadosParaSalvar } = viagemAtual;
-                dadosParaSalvar.dataSalva = new Date().toISOString();
+                // Removemos chaves de controle (editandoId, id do banco, e a dataOriginal falha) para não sujar os dados
+                const { editandoId, dataOriginal, id, ...dadosParaSalvar } = viagemAtual;
+                
+                // CÓDIGO CORRIGIDO: Se já existe dataSalva do banco (padrão de sistema), ele mantém ELA. Se for novo, gera agora.
+                dadosParaSalvar.dataSalva = viagemAtual.dataSalva || new Date().toISOString();
 
                 if (viagemAtual.editandoId) {
-                    // SE JÁ EXISTE ID, USAMOS O SETDOC PARA SOBRESCREVER (EDITAR)
+                    // ATUALIZAR
                     await setDoc(doc(db, "romaneios", viagemAtual.editandoId), dadosParaSalvar);
-                    alert("Romaneio ATUALIZADO com sucesso!");
+                    alert("Romaneio ATUALIZADO mantendo a data e o saldo originais!");
                 } else {
-                    // SE NÃO EXISTE ID, CRIA UM NOVO
+                    // CRIAR NOVO
                     await addDoc(collection(db, "romaneios"), dadosParaSalvar);
                     alert("Novo romaneio SALVO com sucesso!");
                 }
