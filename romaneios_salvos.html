@@ -134,7 +134,6 @@
         let filtrados = [];
         let clientesParaImprimir = [];
 
-        // GERA DATA LOCAL PARA O CAMPO DE FILTRO
         const hoje = new Date();
         document.getElementById('filtroData').value = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
 
@@ -162,7 +161,6 @@
             filtrados = todosRomaneios.filter(r => {
                 let dataDoc = "";
                 if (r.dataSalva) {
-                    // Extrai a data local para não ter erro de fuso horário
                     const dObj = new Date(r.dataSalva);
                     dataDoc = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
                 }
@@ -255,6 +253,10 @@
                 const nomeDoArquivo = `Romaneio_${nomesClientesParaArquivo}.pdf`.replace(/ /g, '_');
 
                 let controleY = 10;
+                
+                // Variáveis para totais gerais do PDF
+                let totalLinhasGeral = 0;
+                let totalVolumesGeral = 0;
 
                 r.clientes.forEach((cliente, index) => {
                     if (index > 0) {
@@ -311,9 +313,19 @@
 
                     controleY = doc.lastAutoTable.finalY + 8;
                     
+                    // Cálculos Locais do Cliente
                     const totalCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.totalCalculado || 0), 0);
+                    const volCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.volumes || 0), 0);
+                    const linhasCli = cliente.produtos.length;
+                    
+                    // Soma aos totais globais
+                    totalLinhasGeral += linhasCli;
+                    totalVolumesGeral += volCli;
+
+                    // Adiciona Linhas e Volumes no PDF (esq) e Valor (dir)
                     doc.setFontSize(11);
                     doc.setFont("helvetica", "bold");
+                    doc.text(`Linhas: ${linhasCli}   |   Volumes: ${volCli.toFixed(1)}`, 10, controleY);
                     doc.text(`Total do Cliente: R$ ${totalCli.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, 200, controleY, { align: "right" });
                     
                     controleY += 10;
@@ -323,6 +335,10 @@
                 doc.setLineWidth(0.5);
                 doc.line(10, controleY, 200, controleY);
                 controleY += 8;
+                
+                // Adiciona Totais Gerais da Viagem no final do PDF
+                doc.setFontSize(12);
+                doc.text(`Qtd. Linhas: ${totalLinhasGeral}   |   Total Volumes: ${totalVolumesGeral.toFixed(1)}`, 10, controleY);
                 doc.setFontSize(14);
                 doc.text(`VALOR TOTAL DO ROMANEIO: R$ ${parseFloat(r.valorTotal || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, 200, controleY, { align: "right" });
 
@@ -385,10 +401,13 @@
             clientesParaImprimir.sort((a, b) => a.ordemImpressao - b.ordemImpressao);
             const area = document.getElementById('areaImpressaoGeral');
             
-            // Alterado: Removida a exibição do total da lista do cabeçalho
             let html = `<div style="text-align:center; margin-bottom:30px; border-bottom: 3px double #000;"><h1>RESUMO GERAL DE CARGA</h1></div>`;
 
             clientesParaImprimir.forEach(cliente => {
+                // Cálculo de volumes e linhas na impressão geral
+                const volCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.volumes || 0), 0);
+                const linhasCli = cliente.produtos.length;
+
                 html += `
                     <div class="bloco-cliente-impressao">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -414,6 +433,9 @@
                                 </tr>`).join('')}
                             </tbody>
                         </table>
+                        <div style="text-align: right; font-weight: bold; font-size: 1em; padding-top: 8px;">
+                            Linhas: ${linhasCli} | Volumes: ${volCli.toFixed(1)}
+                        </div>
                     </div>`;
             });
             
@@ -426,8 +448,21 @@
             const r = todosRomaneios.find(rom => rom.id === id);
             const area = document.getElementById('areaImpressaoGeral');
             let html = "";
+            
+            // Cálculos Totais do Romaneio Completo
+            let totalLinhasRomaneio = 0;
+            let totalVolumesRomaneio = 0;
+            r.clientes.forEach(c => {
+                totalLinhasRomaneio += c.produtos.length;
+                totalVolumesRomaneio += c.produtos.reduce((acc, p) => acc + parseFloat(p.volumes || 0), 0);
+            });
+
             r.clientes.forEach(cliente => {
+                // Cálculos Específicos do Cliente
                 const totalCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.totalCalculado || 0), 0);
+                const volCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.volumes || 0), 0);
+                const linhasCli = cliente.produtos.length;
+
                 html += `
                 <div class="quebra-pagina">
                     <div style="text-align:center; border-bottom:2px solid #000; margin-bottom:10px;">
@@ -460,9 +495,17 @@
                                 </tr>`).join('')}
                             </tbody>
                         </table>
-                        <div style="text-align:right; margin-top:10px; font-size:1.1em; border-top:1px solid #000; padding-top:5px;"><strong>Total do Cliente: R$ ${totalCli.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></div>
+                        
+                        <div style="display:flex; justify-content:space-between; margin-top:10px; font-size:1.1em; border-top:1px solid #000; padding-top:5px;">
+                            <span><strong>Linhas: ${linhasCli} | Volumes: ${volCli.toFixed(1)}</strong></span>
+                            <span><strong>Total do Cliente: R$ ${totalCli.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></span>
+                        </div>
                     </div>
-                    <div style="margin-top:20px; text-align:right; font-size:1.3em; background:#f9f9f9; padding:10px;"><strong>VALOR TOTAL DO ROMANEIO: R$ ${parseFloat(r.valorTotal || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></div>
+                    
+                    <div style="margin-top:20px; display:flex; justify-content:space-between; align-items:center; font-size:1.2em; background:#f9f9f9; padding:10px; border: 1px solid #000;">
+                        <span style="font-size: 0.9em;"><strong>Qtd. Linhas: ${totalLinhasRomaneio} | Tot. Volumes: ${totalVolumesRomaneio.toFixed(1)}</strong></span>
+                        <span><strong>VALOR TOTAL: R$ ${parseFloat(r.valorTotal || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></span>
+                    </div>
                 </div>`;
             });
             area.innerHTML = html;
