@@ -116,7 +116,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, getDocs, query, orderBy, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, query, orderBy, doc, deleteDoc, updateDoc, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCwLzjKJXDCf-9UNNT1X5fzvEgFIc1Hh24",
@@ -137,9 +137,18 @@
         const hoje = new Date();
         document.getElementById('filtroData').value = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
 
+        // BUSCA OTIMIZADA (Busca apenas do dia)
         async function carregarRomaneios() {
+            const dataBusca = document.getElementById('filtroData').value;
+            if (!dataBusca) return;
+
+            document.getElementById('listaRomaneios').innerHTML = '<p>Buscando romaneios deste dia...</p>';
+
             try {
-                const q = query(collection(db, "romaneios"), orderBy("dataSalva", "desc"));
+                const start = dataBusca;
+                const end = dataBusca + "T23:59:59";
+                const q = query(collection(db, "romaneios"), where("dataSalva", ">=", start), where("dataSalva", "<=", end));
+                
                 const querySnapshot = await getDocs(q);
                 todosRomaneios = [];
                 
@@ -147,27 +156,22 @@
                     todosRomaneios.push({ ...docSnap.data(), id: docSnap.id }); 
                 });
                 
-                filtrar();
+                // Ordena os resultados locais pelo horário que foi salvo
+                todosRomaneios.sort((a, b) => new Date(b.dataSalva) - new Date(a.dataSalva));
+                
+                filtrar(); 
             } catch (error) { 
                 console.error("Erro:", error);
                 document.getElementById('listaRomaneios').innerHTML = '<p>Erro ao conectar ao banco.</p>';
             }
         }
 
+        // FILTRO LOCAL APENAS POR MOTORISTA
         function filtrar() {
             const motoristaBusca = document.getElementById('filtroMotorista').value.toLowerCase();
-            const dataBusca = document.getElementById('filtroData').value;
             
             filtrados = todosRomaneios.filter(r => {
-                let dataDoc = "";
-                if (r.dataSalva) {
-                    const dObj = new Date(r.dataSalva);
-                    dataDoc = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
-                }
-
-                const dataOk = dataBusca ? dataDoc === dataBusca : true;
-                const motoristaOk = r.motorista && r.motorista.toLowerCase().includes(motoristaBusca);
-                return dataOk && motoristaOk;
+                return r.motorista && r.motorista.toLowerCase().includes(motoristaBusca);
             });
 
             const listaDiv = document.getElementById('listaRomaneios');
@@ -254,7 +258,6 @@
 
                 let controleY = 10;
                 
-                // Variáveis para totais gerais do PDF
                 let totalLinhasGeral = 0;
                 let totalVolumesGeral = 0;
 
@@ -284,15 +287,20 @@
 
                     controleY += 4;
 
-                    const linhasTabela = cliente.produtos.map(p => [
-                        p.qtd,
-                        p.nome,
-                        p.fornecedor || '--',
-                        `R$ ${parseFloat(p.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`,
-                        p.modoPreco,
-                        p.volumes,
-                        `R$ ${parseFloat(p.totalCalculado).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
-                    ]);
+                    const linhasTabela = cliente.produtos.map(p => {
+                        // Identifica bônus no PDF (sem emoji pra não quebrar a fonte do PDF)
+                        const nomeParaPDF = p.isBonus ? `${p.nome} (BONUS)` : p.nome;
+                        
+                        return [
+                            p.qtd,
+                            nomeParaPDF,
+                            p.fornecedor || '--',
+                            `R$ ${parseFloat(p.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`,
+                            p.modoPreco,
+                            p.volumes,
+                            `R$ ${parseFloat(p.totalCalculado).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
+                        ]
+                    });
 
                     doc.autoTable({
                         startY: controleY,
@@ -313,11 +321,9 @@
 
                     controleY = doc.lastAutoTable.finalY + 8;
                     
-                    // Cálculos Locais do Cliente para somar no total geral
                     const volCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.volumes || 0), 0);
                     const linhasCli = cliente.produtos.length;
                     
-                    // Soma aos totais globais
                     totalLinhasGeral += linhasCli;
                     totalVolumesGeral += volCli;
                     
@@ -329,7 +335,6 @@
                 doc.line(10, controleY, 200, controleY);
                 controleY += 8;
                 
-                // Adiciona Totais Gerais da Viagem no final do PDF
                 doc.setFontSize(12);
                 doc.setFont("helvetica", "bold");
                 doc.text(`Qtd. Linhas: ${totalLinhasGeral}   |   Total Volumes: ${totalVolumesGeral.toFixed(1)}`, 10, controleY);
@@ -398,7 +403,6 @@
             let html = `<div style="text-align:center; margin-bottom:30px; border-bottom: 3px double #000;"><h1>RESUMO GERAL DE CARGA</h1></div>`;
 
             clientesParaImprimir.forEach(cliente => {
-                // Cálculo de volumes e linhas na impressão geral
                 const volCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.volumes || 0), 0);
                 const linhasCli = cliente.produtos.length;
 
@@ -418,13 +422,16 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                ${cliente.produtos.map(p => `<tr>
-                                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.qtd}</td>
-                                    <td style="border: 1px solid #000; padding: 4px;">${p.nome}</td>
-                                    <td style="border: 1px solid #000; padding: 4px;">${p.fornecedor || '--'}</td>
-                                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.modoPreco}</td>
-                                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.volumes}</td>
-                                </tr>`).join('')}
+                                ${cliente.produtos.map(p => {
+                                    const nomeHtml = p.isBonus ? `<strong>🎁 ${p.nome} <br><small>(BÔNUS)</small></strong>` : p.nome;
+                                    return `<tr>
+                                        <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.qtd}</td>
+                                        <td style="border: 1px solid #000; padding: 4px;">${nomeHtml}</td>
+                                        <td style="border: 1px solid #000; padding: 4px;">${p.fornecedor || '--'}</td>
+                                        <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.modoPreco}</td>
+                                        <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.volumes}</td>
+                                    </tr>`
+                                }).join('')}
                             </tbody>
                         </table>
                         <div style="text-align: right; font-weight: bold; font-size: 1em; padding-top: 8px;">
@@ -443,7 +450,6 @@
             const area = document.getElementById('areaImpressaoGeral');
             let html = "";
             
-            // Cálculos Totais do Romaneio Completo
             let totalLinhasRomaneio = 0;
             let totalVolumesRomaneio = 0;
             r.clientes.forEach(c => {
@@ -473,15 +479,18 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                ${cliente.produtos.map(p => `<tr>
-                                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.qtd}</td>
-                                    <td style="border: 1px solid #000; padding: 4px;">${p.nome}</td>
-                                    <td style="border: 1px solid #000; padding: 4px;">${p.fornecedor || '--'}</td>
-                                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">R$ ${parseFloat(p.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.modoPreco}</td>
-                                    <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.volumes}</td>
-                                    <td style="border: 1px solid #000; padding: 4px; text-align: right;">R$ ${parseFloat(p.totalCalculado).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                                </tr>`).join('')}
+                                ${cliente.produtos.map(p => {
+                                    const nomeHtml = p.isBonus ? `<strong>🎁 ${p.nome} <small>(BÔNUS)</small></strong>` : p.nome;
+                                    return `<tr>
+                                        <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.qtd}</td>
+                                        <td style="border: 1px solid #000; padding: 4px;">${nomeHtml}</td>
+                                        <td style="border: 1px solid #000; padding: 4px;">${p.fornecedor || '--'}</td>
+                                        <td style="border: 1px solid #000; padding: 4px; text-align: center;">R$ ${parseFloat(p.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                        <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.modoPreco}</td>
+                                        <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.volumes}</td>
+                                        <td style="border: 1px solid #000; padding: 4px; text-align: right;"><strong>R$ ${parseFloat(p.totalCalculado).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></td>
+                                    </tr>`
+                                }).join('')}
                             </tbody>
                         </table>
                     </div>
@@ -497,7 +506,9 @@
         };
 
         document.getElementById('filtroMotorista').oninput = filtrar;
-        document.getElementById('filtroData').onchange = filtrar;
+        document.getElementById('filtroData').onchange = carregarRomaneios;
+        
+        // Carrega logo que a página abre baseado na data de hoje
         carregarRomaneios();
     </script>
 </body>
