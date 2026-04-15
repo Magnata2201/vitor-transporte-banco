@@ -191,7 +191,10 @@
                         <h3 style="margin: 0; color: #555;">Total no Período:</h3>
                         <h2 id="totalClienteExtrato" style="color: #28a745; margin: 5px 0 0 0;">R$ 0,00</h2>
                     </div>
-                    <button id="btnPdfExtrato" style="background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s;"><i class="fa-solid fa-share-nodes"></i> Compartilhar PDF</button>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button id="btnBaixarPdfExtrato" style="background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s;"><i class="fa-solid fa-download"></i> Baixar PDF</button>
+                        <button id="btnPdfExtrato" style="background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s;"><i class="fa-solid fa-share-nodes"></i> Compartilhar</button>
+                    </div>
                 </div>
                 <div style="max-height: 250px; overflow-y: auto;">
                     <table class="tabela-detalhes">
@@ -626,53 +629,64 @@
             finally { btn.textContent = "🔍 Gerar Extrato"; btn.disabled = false; }
         };
 
-        // --- GERAÇÃO DO PDF DO EXTRATO ---
+        // --- FUNÇÃO CENTRAL DE GERAÇÃO DE PDF DO EXTRATO ---
+        function gerarDocumentoPdfExtrato() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const d = window.dadosExtratoAtual;
+
+            // Título
+            doc.setFontSize(16);
+            doc.setFont("helvetica", "bold");
+            doc.text("EXTRATO DE CLIENTE", 105, 15, { align: "center" });
+
+            // Informações do Cabeçalho
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "normal");
+            doc.text(`CLIENTE: ${d.cliente}`, 15, 25);
+            doc.text(`PERÍODO: ${d.dataInicio} até ${d.dataFim}`, 15, 32);
+
+            // Tabela Colorida
+            doc.autoTable({
+                startY: 40,
+                head: [['Data', 'Qtd. Volumes', 'Valor (R$)']],
+                body: d.linhas,
+                theme: 'grid',
+                headStyles: { fillColor: [111, 66, 193], textColor: [255, 255, 255], fontStyle: 'bold' }, // Cabeçalho Roxo
+                styles: { fontSize: 10, cellPadding: 3 },
+                columnStyles: {
+                    0: { halign: 'center' },
+                    1: { halign: 'center' },
+                    2: { halign: 'right', fontStyle: 'bold', textColor: [40, 167, 69] } // Valores em verde
+                }
+            });
+
+            // Rodapé de Totais
+            const finalY = doc.lastAutoTable.finalY + 10;
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(0, 0, 0); // Preto
+            doc.text(`Total de Volumes: ${d.totalVolumes.toFixed(1)}`, 15, finalY);
+            
+            doc.setFontSize(14);
+            doc.setTextColor(40, 167, 69); // Verde para o total geral
+            doc.text(`TOTAL GERAL: R$ ${d.totalValor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, 195, finalY, { align: "right" });
+            
+            doc.setTextColor(0, 0, 0); // Volta pro preto
+
+            return doc;
+        }
+
+        // --- BOTÃO: COMPARTILHAR PDF ---
         document.getElementById('btnPdfExtrato').onclick = async (e) => {
             const btn = e.currentTarget;
             const originalText = btn.innerHTML;
-            btn.innerHTML = '⏳ Gerando PDF...';
+            btn.innerHTML = '⏳ Aguarde...';
             btn.disabled = true;
 
             try {
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF('p', 'mm', 'a4');
+                const doc = gerarDocumentoPdfExtrato();
                 const d = window.dadosExtratoAtual;
-
-                // Título
-                doc.setFontSize(16);
-                doc.setFont("helvetica", "bold");
-                doc.text("EXTRATO DE CLIENTE", 105, 15, { align: "center" });
-
-                // Informações do Cabeçalho
-                doc.setFontSize(12);
-                doc.setFont("helvetica", "normal");
-                doc.text(`CLIENTE: ${d.cliente}`, 15, 25);
-                doc.text(`PERÍODO: ${d.dataInicio} até ${d.dataFim}`, 15, 32);
-
-                // Tabela
-                doc.autoTable({
-                    startY: 40,
-                    head: [['Data', 'Qtd. Volumes', 'Valor (R$)']],
-                    body: d.linhas,
-                    theme: 'grid',
-                    headStyles: { fillColor: [111, 66, 193], textColor: [255, 255, 255], fontStyle: 'bold' },
-                    styles: { fontSize: 10, cellPadding: 3 },
-                    columnStyles: {
-                        0: { halign: 'center' },
-                        1: { halign: 'center' },
-                        2: { halign: 'right', fontStyle: 'bold' }
-                    }
-                });
-
-                // Rodapé de Totais
-                const finalY = doc.lastAutoTable.finalY + 10;
-                doc.setFontSize(12);
-                doc.setFont("helvetica", "bold");
-                doc.text(`Total de Volumes: ${d.totalVolumes.toFixed(1)}`, 15, finalY);
-                doc.setFontSize(14);
-                doc.text(`TOTAL GERAL: R$ ${d.totalValor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, 195, finalY, { align: "right" });
-
-                // Geração e Compartilhamento
                 const nomeArquivo = `Extrato_${d.cliente.replace(/ /g, '_')}.pdf`;
                 const pdfBlob = doc.output('blob');
                 const file = new File([pdfBlob], nomeArquivo, { type: 'application/pdf' });
@@ -685,12 +699,33 @@
                     });
                 } else {
                     doc.save(nomeArquivo);
-                    alert(`O arquivo ${nomeArquivo} foi baixado com sucesso.`);
+                    alert(`O dispositivo não suporta compartilhamento direto. O arquivo foi baixado.`);
                 }
-
             } catch (error) {
-                console.error("Erro ao gerar PDF:", error);
-                alert("Ocorreu um erro ao gerar o PDF.");
+                console.error("Erro ao compartilhar PDF:", error);
+                alert("Ocorreu um erro ao compartilhar o PDF.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        };
+
+        // --- BOTÃO: BAIXAR PDF ---
+        document.getElementById('btnBaixarPdfExtrato').onclick = (e) => {
+            const btn = e.currentTarget;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Baixando...';
+            btn.disabled = true;
+
+            try {
+                const doc = gerarDocumentoPdfExtrato();
+                const d = window.dadosExtratoAtual;
+                const nomeArquivo = `Extrato_${d.cliente.replace(/ /g, '_')}.pdf`;
+                
+                doc.save(nomeArquivo); // Comando direto para forçar o download
+            } catch (error) {
+                console.error("Erro ao baixar PDF:", error);
+                alert("Ocorreu um erro ao baixar o PDF.");
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
