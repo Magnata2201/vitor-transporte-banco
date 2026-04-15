@@ -7,6 +7,11 @@
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/x-icon" href="icon.ico">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
     <style>
         .layout-wrapper { display: flex; gap: 20px; max-width: 1100px; margin: 20px auto; padding: 0 20px; align-items: flex-start; }
         .sidebar-resumo { flex: 0 0 280px; background: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
@@ -181,17 +186,20 @@
             </form>
 
             <div id="resultadoExtratoCliente" style="display: none;">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #6f42c1; padding-bottom: 10px; margin-bottom: 15px;">
-                    <h3>Total no Período:</h3>
-                    <h2 id="totalClienteExtrato" style="color: #28a745; margin: 0;">R$ 0,00</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #6f42c1; padding-bottom: 10px; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <h3 style="margin: 0; color: #555;">Total no Período:</h3>
+                        <h2 id="totalClienteExtrato" style="color: #28a745; margin: 5px 0 0 0;">R$ 0,00</h2>
+                    </div>
+                    <button id="btnPdfExtrato" style="background: #25D366; color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s;"><i class="fa-solid fa-share-nodes"></i> Compartilhar PDF</button>
                 </div>
                 <div style="max-height: 250px; overflow-y: auto;">
                     <table class="tabela-detalhes">
                         <thead>
                             <tr>
                                 <th>Data</th>
-                                <th>Motorista</th>
-                                <th>Valor do Cliente</th>
+                                <th style="text-align: center;">Qtd. Volumes</th>
+                                <th style="text-align: right;">Valor (R$)</th>
                             </tr>
                         </thead>
                         <tbody id="tabelaExtratoCorpo"></tbody>
@@ -219,6 +227,16 @@
 
         const filtroData = document.getElementById('filtroData');
         
+        // Objeto global para armazenar os dados do extrato atual para o gerador de PDF
+        window.dadosExtratoAtual = {
+            cliente: '',
+            dataInicio: '',
+            dataFim: '',
+            linhas: [],
+            totalValor: 0,
+            totalVolumes: 0
+        };
+
         const formatarMoeda = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         
         const formatarColorido = (v) => {
@@ -231,13 +249,12 @@
             return `<span style="color: #007bff; font-weight: bold;">${strMoeda}</span>`;
         };
 
-        // --- ATUALIZAR DASHBOARD (OTIMIZADO) ---
+        // --- ATUALIZAR DASHBOARD ---
         async function atualizarDashboard() {
             const dataISO = filtroData.value;
             if (!dataISO) return;
 
             try {
-                // Puxa APENAS os romaneios do dia selecionado
                 const start = dataISO;
                 const end = dataISO + "T23:59:59";
                 const qRomaneios = query(collection(db, "romaneios"), where("dataSalva", ">=", start), where("dataSalva", "<=", end));
@@ -257,7 +274,6 @@
                     statsMotoristas[nome].liquido += valor; 
                 });
 
-                // Puxa apenas as despesas do dia
                 const qDespesas = query(collection(db, "despesas"), where("data", "==", dataISO));
                 const snapDespesas = await getDocs(qDespesas);
                 
@@ -484,7 +500,7 @@
             atualizarDashboard();
         };
 
-        // --- RELATÓRIO GERAL (MANTIDO, MAS USE COM MODERAÇÃO) ---
+        // --- RELATÓRIO GERAL ---
         document.getElementById('btnRelatorioGeral').onclick = async () => {
             const snapR = await getDocs(collection(db, "romaneios"));
             const snapD = await getDocs(collection(db, "despesas"));
@@ -515,7 +531,7 @@
             document.getElementById('modalRelatorioGeral').style.display = 'block';
         };
 
-        // --- EXTRATO DO CLIENTE (OTIMIZADO) ---
+        // --- EXTRATO DO CLIENTE ---
         document.getElementById('btnResumoCliente').onclick = async () => {
             document.getElementById('resultadoExtratoCliente').style.display = 'none';
             document.getElementById('modalExtratoCliente').style.display = 'block';
@@ -550,13 +566,19 @@
             btn.textContent = "Aguarde...";
             btn.disabled = true;
 
+            // Resetando dados do PDF
+            window.dadosExtratoAtual.cliente = clienteBuscado;
+            window.dadosExtratoAtual.dataInicio = dataInicio.split('-').reverse().join('/');
+            window.dadosExtratoAtual.dataFim = dataFim.split('-').reverse().join('/');
+            window.dadosExtratoAtual.linhas = [];
+            window.dadosExtratoAtual.totalValor = 0;
+            window.dadosExtratoAtual.totalVolumes = 0;
+
             try {
-                // Puxa APENAS os romaneios dentro do período
                 const endFim = dataFim + "T23:59:59";
                 const qExtrato = query(collection(db, "romaneios"), where("dataSalva", ">=", dataInicio), where("dataSalva", "<=", endFim));
                 const snapRomaneios = await getDocs(qExtrato);
                 
-                let totalAcumuladoCliente = 0;
                 let htmlTabela = '';
 
                 snapRomaneios.forEach(doc => {
@@ -565,16 +587,31 @@
                         const clienteEncontrado = r.clientes.find(c => c.nome === clienteBuscado);
                         if (clienteEncontrado) {
                             let subtotalViagem = 0;
-                            clienteEncontrado.produtos.forEach(p => { subtotalViagem += parseFloat(p.totalCalculado || 0); });
-                            totalAcumuladoCliente += subtotalViagem;
+                            let volumesViagem = 0;
+
+                            clienteEncontrado.produtos.forEach(p => { 
+                                subtotalViagem += parseFloat(p.totalCalculado || 0); 
+                                volumesViagem += parseFloat(p.volumes || 0);
+                            });
+
+                            window.dadosExtratoAtual.totalValor += subtotalViagem;
+                            window.dadosExtratoAtual.totalVolumes += volumesViagem;
 
                             const dObj = new Date(r.dataSalva);
                             const rDataLocal = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+                            const dataFormatada = rDataLocal.split('-').reverse().join('/');
+
+                            // Adicionando linha ao Array do PDF
+                            window.dadosExtratoAtual.linhas.push([
+                                dataFormatada,
+                                volumesViagem.toFixed(1),
+                                `R$ ${subtotalViagem.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
+                            ]);
 
                             htmlTabela += `<tr>
-                                <td>${rDataLocal.split('-').reverse().join('/')}</td>
-                                <td>${r.motorista || '---'}</td>
-                                <td><strong style="color: #28a745;">R$ ${subtotalViagem.toFixed(2).replace('.', ',')}</strong></td>
+                                <td>${dataFormatada}</td>
+                                <td style="text-align: center;">${volumesViagem.toFixed(1)}</td>
+                                <td style="text-align: right;"><strong style="color: #28a745;">R$ ${subtotalViagem.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></td>
                             </tr>`;
                         }
                     }
@@ -582,11 +619,82 @@
 
                 if (htmlTabela === '') htmlTabela = '<tr><td colspan="3" style="text-align: center; color: #999;">Nenhuma viagem encontrada.</td></tr>';
                 document.getElementById('tabelaExtratoCorpo').innerHTML = htmlTabela;
-                document.getElementById('totalClienteExtrato').innerHTML = formatarMoeda(totalAcumuladoCliente);
+                document.getElementById('totalClienteExtrato').innerHTML = formatarMoeda(window.dadosExtratoAtual.totalValor);
                 document.getElementById('resultadoExtratoCliente').style.display = 'block';
 
             } catch (error) { alert("Erro ao puxar dados."); console.error(error); } 
             finally { btn.textContent = "🔍 Gerar Extrato"; btn.disabled = false; }
+        };
+
+        // --- GERAÇÃO DO PDF DO EXTRATO ---
+        document.getElementById('btnPdfExtrato').onclick = async (e) => {
+            const btn = e.currentTarget;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Gerando PDF...';
+            btn.disabled = true;
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF('p', 'mm', 'a4');
+                const d = window.dadosExtratoAtual;
+
+                // Título
+                doc.setFontSize(16);
+                doc.setFont("helvetica", "bold");
+                doc.text("EXTRATO DE CLIENTE", 105, 15, { align: "center" });
+
+                // Informações do Cabeçalho
+                doc.setFontSize(12);
+                doc.setFont("helvetica", "normal");
+                doc.text(`CLIENTE: ${d.cliente}`, 15, 25);
+                doc.text(`PERÍODO: ${d.dataInicio} até ${d.dataFim}`, 15, 32);
+
+                // Tabela
+                doc.autoTable({
+                    startY: 40,
+                    head: [['Data', 'Qtd. Volumes', 'Valor (R$)']],
+                    body: d.linhas,
+                    theme: 'grid',
+                    headStyles: { fillColor: [111, 66, 193], textColor: [255, 255, 255], fontStyle: 'bold' },
+                    styles: { fontSize: 10, cellPadding: 3 },
+                    columnStyles: {
+                        0: { halign: 'center' },
+                        1: { halign: 'center' },
+                        2: { halign: 'right', fontStyle: 'bold' }
+                    }
+                });
+
+                // Rodapé de Totais
+                const finalY = doc.lastAutoTable.finalY + 10;
+                doc.setFontSize(12);
+                doc.setFont("helvetica", "bold");
+                doc.text(`Total de Volumes: ${d.totalVolumes.toFixed(1)}`, 15, finalY);
+                doc.setFontSize(14);
+                doc.text(`TOTAL GERAL: R$ ${d.totalValor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, 195, finalY, { align: "right" });
+
+                // Geração e Compartilhamento
+                const nomeArquivo = `Extrato_${d.cliente.replace(/ /g, '_')}.pdf`;
+                const pdfBlob = doc.output('blob');
+                const file = new File([pdfBlob], nomeArquivo, { type: 'application/pdf' });
+
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: 'Extrato de Cliente',
+                        text: `Segue o extrato atualizado do cliente: ${d.cliente}`
+                    });
+                } else {
+                    doc.save(nomeArquivo);
+                    alert(`O arquivo ${nomeArquivo} foi baixado com sucesso.`);
+                }
+
+            } catch (error) {
+                console.error("Erro ao gerar PDF:", error);
+                alert("Ocorreu um erro ao gerar o PDF.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
         };
 
         // FECHAR MODAIS
