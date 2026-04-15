@@ -89,6 +89,7 @@
                 <button id="btnAbrirModalDespesa" style="flex: 1; min-width: 200px;">➕ Registrar Despesa Fixa</button>
                 <button id="btnAbrirModalDetalhes" class="btn-secondary" style="flex: 1; min-width: 200px;">📄 Ver Detalhes do Dia</button>
                 <button id="btnRelatorioGeral" class="btn-geral" style="flex: 1; min-width: 200px;">📊 Relatório Geral</button>
+                <button id="btnResumoCliente" class="btn-geral" style="flex: 1; min-width: 200px; background: #6f42c1;">👤 Extrato do Cliente</button>
             </div>
         </div>
     </div>
@@ -154,6 +155,52 @@
         </div>
     </div>
 
+    <div id="modalExtratoCliente" class="modal-overlay" style="display: none;">
+        <div class="modal-content modal-grande">
+            <span class="modal-close" id="btnCloseExtratoCliente">&times;</span>
+            <h2>👤 Extrato do Cliente</h2>
+            
+            <form id="formExtratoCliente" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd;">
+                <div class="form-group">
+                    <label>Selecione o Cliente:</label>
+                    <select id="selectClienteExtrato" required>
+                        <option value="" disabled selected>Carregando clientes...</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Data Início:</label>
+                        <input type="date" id="dataInicioExtrato" required>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Data Fim:</label>
+                        <input type="date" id="dataFimExtrato" required>
+                    </div>
+                </div>
+                <button type="submit" style="background: #6f42c1; width: 100%;">🔍 Gerar Extrato</button>
+            </form>
+
+            <div id="resultadoExtratoCliente" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #6f42c1; padding-bottom: 10px; margin-bottom: 15px;">
+                    <h3>Total no Período:</h3>
+                    <h2 id="totalClienteExtrato" style="color: #28a745; margin: 0;">R$ 0,00</h2>
+                </div>
+                <div style="max-height: 250px; overflow-y: auto;">
+                    <table class="tabela-detalhes">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Motorista</th>
+                                <th>Valor do Cliente</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaExtratoCorpo"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, getDocs, addDoc, query, where, doc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -184,35 +231,33 @@
             return `<span style="color: #007bff; font-weight: bold;">${strMoeda}</span>`;
         };
 
-        // --- ATUALIZAR DASHBOARD ---
+        // --- ATUALIZAR DASHBOARD (OTIMIZADO) ---
         async function atualizarDashboard() {
             const dataISO = filtroData.value;
             if (!dataISO) return;
 
             try {
-                const snapRomaneios = await getDocs(collection(db, "romaneios"));
+                // Puxa APENAS os romaneios do dia selecionado
+                const start = dataISO;
+                const end = dataISO + "T23:59:59";
+                const qRomaneios = query(collection(db, "romaneios"), where("dataSalva", ">=", start), where("dataSalva", "<=", end));
+                
+                const snapRomaneios = await getDocs(qRomaneios);
                 let statsMotoristas = {}; 
 
                 snapRomaneios.forEach(doc => {
                     const r = doc.data();
-                    if (r.dataSalva) {
-                        // Extrai a data local para não ter erro de fuso horário
-                        const dObj = new Date(r.dataSalva);
-                        const rDataLocal = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
-                        
-                        if (rDataLocal === dataISO) {
-                            const valor = parseFloat(r.valorTotal || 0);
-                            const nome = r.motorista ? r.motorista.toUpperCase() : "DESCONHECIDO";
-                            
-                            if (!statsMotoristas[nome]) {
-                                statsMotoristas[nome] = { bruto: 0, despesas: 0, liquido: 0 };
-                            }
-                            statsMotoristas[nome].bruto += valor;
-                            statsMotoristas[nome].liquido += valor; 
-                        }
+                    const valor = parseFloat(r.valorTotal || 0);
+                    const nome = r.motorista ? r.motorista.toUpperCase() : "DESCONHECIDO";
+                    
+                    if (!statsMotoristas[nome]) {
+                        statsMotoristas[nome] = { bruto: 0, despesas: 0, liquido: 0 };
                     }
+                    statsMotoristas[nome].bruto += valor;
+                    statsMotoristas[nome].liquido += valor; 
                 });
 
+                // Puxa apenas as despesas do dia
                 const qDespesas = query(collection(db, "despesas"), where("data", "==", dataISO));
                 const snapDespesas = await getDocs(qDespesas);
                 
@@ -256,7 +301,7 @@
 
                 window.dadosDia = { faturadoLiquido, despesasFixasTotal, statsMotoristas, despesasFixasDoDia };
 
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error("Erro na leitura otimizada:", e); }
         }
 
         // --- VER DETALHES DO DIA ---
@@ -439,7 +484,7 @@
             atualizarDashboard();
         };
 
-        // --- RELATÓRIO GERAL ---
+        // --- RELATÓRIO GERAL (MANTIDO, MAS USE COM MODERAÇÃO) ---
         document.getElementById('btnRelatorioGeral').onclick = async () => {
             const snapR = await getDocs(collection(db, "romaneios"));
             const snapD = await getDocs(collection(db, "despesas"));
@@ -470,17 +515,92 @@
             document.getElementById('modalRelatorioGeral').style.display = 'block';
         };
 
+        // --- EXTRATO DO CLIENTE (OTIMIZADO) ---
+        document.getElementById('btnResumoCliente').onclick = async () => {
+            document.getElementById('resultadoExtratoCliente').style.display = 'none';
+            document.getElementById('modalExtratoCliente').style.display = 'block';
+            
+            const hoje = new Date();
+            const primeiroDia = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-01`;
+            const ultimoDia = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+            
+            document.getElementById('dataInicioExtrato').value = primeiroDia;
+            document.getElementById('dataFimExtrato').value = ultimoDia;
+
+            const selectCliente = document.getElementById('selectClienteExtrato');
+            try {
+                const snapClientes = await getDocs(collection(db, "clientes"));
+                let htmlOptions = '<option value="" disabled selected>-- Escolha um Cliente --</option>';
+                let clientes = [];
+                snapClientes.forEach(doc => clientes.push(doc.data().nome));
+                clientes.sort().forEach(nome => htmlOptions += `<option value="${nome}">${nome}</option>`);
+                selectCliente.innerHTML = htmlOptions;
+            } catch(e) {
+                selectCliente.innerHTML = '<option value="" disabled>Erro ao carregar clientes</option>';
+            }
+        };
+
+        document.getElementById('formExtratoCliente').onsubmit = async (e) => {
+            e.preventDefault();
+            const clienteBuscado = document.getElementById('selectClienteExtrato').value;
+            const dataInicio = document.getElementById('dataInicioExtrato').value;
+            const dataFim = document.getElementById('dataFimExtrato').value;
+            
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.textContent = "Aguarde...";
+            btn.disabled = true;
+
+            try {
+                // Puxa APENAS os romaneios dentro do período
+                const endFim = dataFim + "T23:59:59";
+                const qExtrato = query(collection(db, "romaneios"), where("dataSalva", ">=", dataInicio), where("dataSalva", "<=", endFim));
+                const snapRomaneios = await getDocs(qExtrato);
+                
+                let totalAcumuladoCliente = 0;
+                let htmlTabela = '';
+
+                snapRomaneios.forEach(doc => {
+                    const r = doc.data();
+                    if (r.clientes) {
+                        const clienteEncontrado = r.clientes.find(c => c.nome === clienteBuscado);
+                        if (clienteEncontrado) {
+                            let subtotalViagem = 0;
+                            clienteEncontrado.produtos.forEach(p => { subtotalViagem += parseFloat(p.totalCalculado || 0); });
+                            totalAcumuladoCliente += subtotalViagem;
+
+                            const dObj = new Date(r.dataSalva);
+                            const rDataLocal = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+
+                            htmlTabela += `<tr>
+                                <td>${rDataLocal.split('-').reverse().join('/')}</td>
+                                <td>${r.motorista || '---'}</td>
+                                <td><strong style="color: #28a745;">R$ ${subtotalViagem.toFixed(2).replace('.', ',')}</strong></td>
+                            </tr>`;
+                        }
+                    }
+                });
+
+                if (htmlTabela === '') htmlTabela = '<tr><td colspan="3" style="text-align: center; color: #999;">Nenhuma viagem encontrada.</td></tr>';
+                document.getElementById('tabelaExtratoCorpo').innerHTML = htmlTabela;
+                document.getElementById('totalClienteExtrato').innerHTML = formatarMoeda(totalAcumuladoCliente);
+                document.getElementById('resultadoExtratoCliente').style.display = 'block';
+
+            } catch (error) { alert("Erro ao puxar dados."); console.error(error); } 
+            finally { btn.textContent = "🔍 Gerar Extrato"; btn.disabled = false; }
+        };
+
         // FECHAR MODAIS
         document.getElementById('btnCloseMotorista').onclick = () => document.getElementById('modalDespesaMotorista').style.display = 'none';
         document.getElementById('btnCloseGeral').onclick = () => document.getElementById('modalRelatorioGeral').style.display = 'none';
         document.getElementById('btnCloseModalDespesa').onclick = () => { document.getElementById('modalNovaDespesa').style.display = 'none'; if(document.getElementById('idDespesaFixaEditando').value) document.getElementById('btnAbrirModalDetalhes').click(); };
         document.getElementById('btnCloseModalDetalhes').onclick = () => document.getElementById('modalDetalhesDia').style.display = 'none';
+        document.getElementById('btnCloseExtratoCliente').onclick = () => document.getElementById('modalExtratoCliente').style.display = 'none';
 
         // GERA DATA LOCAL PARA O CAMPO DE FILTRO
-        const hoje = new Date();
-        const dataLocal = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+        const hoje_init = new Date();
+        const dataLocal_init = `${hoje_init.getFullYear()}-${String(hoje_init.getMonth() + 1).padStart(2, '0')}-${String(hoje_init.getDate()).padStart(2, '0')}`;
         
-        filtroData.value = dataLocal;
+        filtroData.value = dataLocal_init;
         filtroData.onchange = atualizarDashboard;
         atualizarDashboard();
     </script>
