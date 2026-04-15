@@ -139,7 +139,6 @@
         const hoje = new Date();
         document.getElementById('filtroData').value = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
 
-        // BUSCA OTIMIZADA (Busca apenas do dia)
         async function carregarRomaneios() {
             const dataBusca = document.getElementById('filtroData').value;
             if (!dataBusca) return;
@@ -159,7 +158,6 @@
                 });
                 
                 todosRomaneios.sort((a, b) => new Date(b.dataSalva) - new Date(a.dataSalva));
-                
                 filtrar(); 
             } catch (error) { 
                 console.error("Erro:", error);
@@ -167,7 +165,6 @@
             }
         }
 
-        // FILTRO LOCAL APENAS POR MOTORISTA
         function filtrar() {
             const motoristaBusca = document.getElementById('filtroMotorista').value.toLowerCase();
             
@@ -241,7 +238,6 @@
             }
         };
 
-        // FUNÇÃO CENTRAL PARA GERAR O PDF (Usada pelo Baixar e Compartilhar)
         const gerarDocPdfRomaneio = (r) => {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('p', 'mm', 'a4');
@@ -335,7 +331,24 @@
             return { doc, nomeDoArquivo, nomesClientesParaArquivo };
         };
 
-        // --- BOTÃO DE COMPARTILHAR (WHATSAPP) ---
+        // --- SOLUÇÃO UNIVERSAL DE DOWNLOAD (Corrige o erro do arquivo .bin no Android) ---
+        function forcarDownloadPDF(doc, nomeDoArquivo) {
+            const pdfBlob = doc.output('blob');
+            const blob = new Blob([pdfBlob], { type: 'application/pdf' });
+            const url = window.URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = nomeDoArquivo;
+            document.body.appendChild(link);
+            link.click();
+            
+            setTimeout(() => {
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(link);
+            }, 100);
+        }
+
         window.compartilharRomaneio = async (id, event) => {
             const r = todosRomaneios.find(rom => rom.id === id);
             if (!r) return;
@@ -361,8 +374,9 @@
                         console.log("Compartilhamento cancelado", shareError);
                     }
                 } else {
-                    doc.save(nomeDoArquivo);
-                    alert(`O compartilhamento direto não é suportado no seu dispositivo. O arquivo foi baixado.`);
+                    // Fallback blindado se o celular não tiver suporte a share
+                    forcarDownloadPDF(doc, nomeDoArquivo);
+                    alert(`Compartilhamento direto indisponível. O arquivo foi baixado.`);
                 }
             } catch (error) {
                 console.error(error);
@@ -373,7 +387,6 @@
             }
         };
 
-        // --- BOTÃO DE BAIXAR DIRETO (DOWNLOAD) ---
         window.baixarPdfRomaneio = async (id, event) => {
             const r = todosRomaneios.find(rom => rom.id === id);
             if (!r) return;
@@ -385,7 +398,7 @@
 
             try {
                 const { doc, nomeDoArquivo } = gerarDocPdfRomaneio(r);
-                doc.save(nomeDoArquivo); // Força o download do arquivo
+                forcarDownloadPDF(doc, nomeDoArquivo); // Uso da função universal de download
             } catch (error) {
                 console.error(error);
                 alert("Erro ao baixar o PDF.");
@@ -535,7 +548,6 @@
         document.getElementById('filtroMotorista').oninput = filtrar;
         document.getElementById('filtroData').onchange = carregarRomaneios;
         
-        // Carrega logo que a página abre baseado na data de hoje
         carregarRomaneios();
     </script>
 </body>
