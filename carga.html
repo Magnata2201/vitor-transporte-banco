@@ -75,11 +75,16 @@
                 <input type="hidden" id="editIdxCli">
                 <input type="hidden" id="editIdxProd">
 
-                <div style="background: #f1f1f1; padding: 10px; border-radius: 4px; margin-bottom: 10px; display: flex; flex-direction: column;">
+                <div style="background: #f1f1f1; padding: 10px; border-radius: 4px; margin-bottom: 5px; display: flex; flex-direction: column;">
                     <label style="font-weight: bold; font-size: 14px; margin-bottom: 5px;">Produto:</label>
                     <input type="hidden" class="produto-nome-hidden" required>
                     <button type="button" class="btn-escolher" onclick="abrirModal(this.closest('form'))">Escolher</button>
                 </div>
+
+                <label style="font-weight: bold; font-size: 14px; color: #dc3545; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 10px; background: #fff3cd; border-radius: 4px; border: 1px solid #ffeeba;">
+                    <input type="checkbox" id="editBonus" style="transform: scale(1.3); cursor: pointer;">
+                    🎁 Marcar como Bonificação (Não cobra no total)
+                </label>
 
                 <label style="font-weight: bold; font-size: 14px;">Fornecedor:</label>
                 <input type="text" id="editFornecedor" class="search-box" style="margin-bottom: 5px;">
@@ -170,22 +175,35 @@
             });
         }
 
+        // CARREGAMENTO OTIMIZADO USANDO CACHE
         async function carregarDadosFirebase() {
             try {
-                const snapClientes = await getDocs(collection(db, "clientes"));
-                listaDeClientes = [];
-                snapClientes.forEach(doc => listaDeClientes.push(doc.data()));
-                listaDeClientes.sort((a,b) => a.nome.localeCompare(b.nome));
+                const cacheClientes = sessionStorage.getItem('cacheClientesLogistica');
+                const cacheProdutos = sessionStorage.getItem('cacheProdutosLogistica');
 
-                const snapProdutos = await getDocs(collection(db, "produtos"));
-                listaDeProdutos = [];
-                snapProdutos.forEach(doc => listaDeProdutos.push(doc.data()));
+                if (cacheClientes && cacheProdutos) {
+                    listaDeClientes = JSON.parse(cacheClientes);
+                    listaDeProdutos = JSON.parse(cacheProdutos);
+                } else {
+                    const snapClientes = await getDocs(collection(db, "clientes"));
+                    listaDeClientes = [];
+                    snapClientes.forEach(doc => listaDeClientes.push(doc.data()));
+
+                    const snapProdutos = await getDocs(collection(db, "produtos"));
+                    listaDeProdutos = [];
+                    snapProdutos.forEach(doc => listaDeProdutos.push(doc.data()));
+
+                    sessionStorage.setItem('cacheClientesLogistica', JSON.stringify(listaDeClientes));
+                    sessionStorage.setItem('cacheProdutosLogistica', JSON.stringify(listaDeProdutos));
+                }
+
+                listaDeClientes.sort((a,b) => a.nome.localeCompare(b.nome));
                 listaDeProdutos.sort((a,b) => a.nome.localeCompare(b.nome));
 
                 atualizarSelectClientes();
                 renderizarClientes();
                 calcularValorTotal();
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error("Erro ao carregar do cache/banco:", e); }
         }
 
         function atualizarSelectClientes() {
@@ -238,11 +256,9 @@
         window.editarProduto = (cIdx, pIdx) => {
             const produto = viagemAtual.clientes[cIdx].produtos[pIdx];
 
-            // Preenche os índices e campos
             document.getElementById('editIdxCli').value = cIdx;
             document.getElementById('editIdxProd').value = pIdx;
             
-            // Configura o botão do Produto no Modal de Edição
             const formEdit = document.getElementById('formEditarProduto');
             formEdit.querySelector('.produto-nome-hidden').value = produto.nome;
             const btnEscolher = formEdit.querySelector('.btn-escolher');
@@ -253,6 +269,7 @@
             document.getElementById('editQtd').value = produto.qtd;
             document.getElementById('editModo').value = produto.modoPreco;
             document.getElementById('editVolumes').value = produto.volumes;
+            document.getElementById('editBonus').checked = produto.isBonus || false; // Carrega se já era bônus
 
             document.getElementById('modalEditarProduto').style.display = "block";
         };
@@ -285,13 +302,15 @@
             const novoNome = document.getElementById('formEditarProduto').querySelector('.produto-nome-hidden').value;
             const novaQtd = parseFloat(document.getElementById('editQtd').value);
             const novoModo = document.getElementById('editModo').value;
+            const isBonus = document.getElementById('editBonus').checked;
             
-            // Recalcula o total (dinheiro) baseado na nova qtd e modo
             let novoTotal = vCaixa * novaQtd;
             if (novoModo.startsWith('X')) novoTotal *= parseFloat(novoModo.replace('X', ''));
             else if (novoModo.startsWith('÷')) novoTotal /= parseFloat(novoModo.replace('÷', ''));
 
-            // Atualiza os dados no array da viagem
+            // SE FOR BÔNUS, FORÇA O VALOR A ZERO
+            if (isBonus) novoTotal = 0;
+
             viagemAtual.clientes[cIdx].produtos[pIdx] = {
                 ...produtoAnterior,
                 nome: novoNome,
@@ -299,7 +318,8 @@
                 qtd: novaQtd,
                 modoPreco: novoModo,
                 volumes: parseFloat(document.getElementById('editVolumes').value),
-                totalCalculado: novoTotal.toFixed(2)
+                totalCalculado: novoTotal.toFixed(2),
+                isBonus: isBonus
             };
 
             fecharModalEditar();
@@ -361,14 +381,18 @@
                     valorCliente += parseFloat(p.totalCalculado) || 0;
                     linhasCliente += 1;
 
+                    // Tag visual para identificar bônus
+                    const nomeExibicao = p.isBonus ? `<span style="color:#dc3545; font-weight:bold;">🎁 ${p.nome} (Bônus)</span>` : p.nome;
+                    const estiloTotal = p.isBonus ? 'color:#dc3545;' : '';
+
                     rows += `<tr>
                         <td>${p.qtd}</td>
-                        <td>${p.nome}</td>
+                        <td>${nomeExibicao}</td>
                         <td>${p.fornecedor || '---'}</td>
                         <td>R$ ${parseFloat(p.valor).toFixed(2).replace('.',',')}</td>
                         <td>${p.modoPreco}</td>
                         <td>${p.volumes}</td>
-                        <td><strong>R$ ${parseFloat(p.totalCalculado).toFixed(2).replace('.',',')}</strong></td>
+                        <td style="${estiloTotal}"><strong>R$ ${parseFloat(p.totalCalculado).toFixed(2).replace('.',',')}</strong></td>
                         <td style="white-space: nowrap;">
                             <button type="button" class="btn-warning" onclick="editarProduto(${idxCli}, ${idxProd})">✏️</button>
                             <button type="button" class="btn-danger" onclick="removerProduto(${idxCli}, ${idxProd})">X</button>
@@ -428,6 +452,11 @@
                             <label style="font-size:12px; font-weight:bold; margin-bottom:5px; color:#555;">Vol:</label>
                             <input type="number" class="produto-volumes" value="1" step="0.1" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px; background:#e9ecef; color:#495057; cursor:not-allowed; box-sizing:border-box; font-weight:bold;" readonly tabindex="-1">
                         </div>
+
+                        <div style="display:flex; flex-direction:column; flex: 0.5; min-width: 40px; align-items:center; justify-content:center; padding-bottom: 8px;">
+                            <label style="font-size:14px; font-weight:bold; margin-bottom:2px; color:#dc3545;" title="Marcar como Bonificação">🎁</label>
+                            <input type="checkbox" class="produto-bonus" style="transform: scale(1.4); cursor: pointer; margin:0;" title="Bônus (R$ 0,00)">
+                        </div>
                         
                         <button type="submit" style="flex: 1.5; min-width: 120px; background:#28a745; color:#fff; border:none; padding:11px 15px; border-radius:4px; cursor:pointer; font-weight:bold; height: 39px; transition: 0.3s;">ADICIONAR</button>
                     </form>`;
@@ -460,10 +489,14 @@
             const vCaixa = parseFloat(viagemAtual.clientes[idxCli].valorCaixa || 0);
             const modo = form.querySelector('.modo-preco').value;
             const qtd = parseFloat(form.querySelector('.produto-qtd').value);
+            const isBonus = form.querySelector('.produto-bonus').checked;
             
             let total = vCaixa * qtd;
             if (modo.startsWith('X')) total *= parseFloat(modo.replace('X', ''));
             else if (modo.startsWith('÷')) total /= parseFloat(modo.replace('÷', ''));
+
+            // SE FOR BÔNUS, FORÇA O VALOR A ZERO
+            if (isBonus) total = 0;
 
             viagemAtual.clientes[idxCli].produtos.push({
                 nome: nomeProd,
@@ -472,12 +505,14 @@
                 qtd: qtd, 
                 volumes: parseFloat(form.querySelector('.produto-volumes').value),
                 modoPreco: modo, 
-                totalCalculado: total.toFixed(2)
+                totalCalculado: total.toFixed(2),
+                isBonus: isBonus
             });
 
             form.querySelector('.fornecedor-input').value = "";
             form.querySelector('.produto-qtd').value = "1";
             form.querySelector('.modo-preco').value = "X1";
+            form.querySelector('.produto-bonus').checked = false; // Desmarca após adicionar
             
             calcularVolume(form);
             calcularValorTotal(); 
