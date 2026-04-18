@@ -374,7 +374,6 @@
                         console.log("Compartilhamento cancelado", shareError);
                     }
                 } else {
-                    // Fallback blindado se o celular não tiver suporte a share
                     forcarDownloadPDF(doc, nomeDoArquivo);
                     alert(`Compartilhamento direto indisponível. O arquivo foi baixado.`);
                 }
@@ -398,7 +397,7 @@
 
             try {
                 const { doc, nomeDoArquivo } = gerarDocPdfRomaneio(r);
-                forcarDownloadPDF(doc, nomeDoArquivo); // Uso da função universal de download
+                forcarDownloadPDF(doc, nomeDoArquivo); 
             } catch (error) {
                 console.error(error);
                 alert("Erro ao baixar o PDF.");
