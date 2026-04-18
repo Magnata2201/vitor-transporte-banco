@@ -125,7 +125,7 @@
                 const { editandoId, dataOriginal, id, ...dadosParaSalvar } = viagemAtual;
                 
                 // CÓDIGO CORRIGIDO: Se já existe dataSalva do banco (padrão de sistema), ele mantém ELA. Se for novo, gera agora.
-                dadosParaSalvar.dataSalva = viagemAtual.dataSalva || new Date().toISOString();
+                dadosParaSalvar.dataSalva = viagemAtual.dataSalva || (function() { const d = new Date(); return new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 19); })();
 
                 if (viagemAtual.editandoId) {
                     // ATUALIZAR
