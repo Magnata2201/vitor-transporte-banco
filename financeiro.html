@@ -642,6 +642,7 @@
         };
 
         // --- FUNÇÃO CENTRAL DE GERAÇÃO DE PDF DO EXTRATO ---
+       // --- FUNÇÃO CENTRAL DE GERAÇÃO DE PDF DO EXTRATO ---
         function gerarDocumentoPdfExtrato() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('p', 'mm', 'a4');
@@ -656,17 +657,64 @@
             doc.text(`CLIENTE: ${d.cliente}`, 15, 25);
             doc.text(`PERÍODO: ${d.dataInicio} até ${d.dataFim}`, 15, 32);
 
+            // 1. Faz a leitura do que está marcado na tela neste exato momento
+            const linhasParaPdf = [];
+            const trs = document.querySelectorAll('#tabelaExtratoCorpo tr');
+            
+            trs.forEach(tr => {
+                // Garante que é uma linha de dados e não a mensagem de tabela vazia
+                if (tr.children.length === 4) {
+                    const isPago = tr.classList.contains('linha-paga');
+                    const dataViagem = tr.children[1].innerText;
+                    const volumes = tr.children[2].innerText;
+                    const valor = tr.children[3].innerText;
+                    
+                    linhasParaPdf.push({ rowData: [dataViagem, volumes, valor], isPago: isPago });
+                }
+            });
+
+            // 2. Desenha a tabela aplicando as cores e os riscos
             doc.autoTable({
                 startY: 40,
                 head: [['Data', 'Qtd. Volumes', 'Valor (R$)']],
-                body: d.linhas,
+                body: linhasParaPdf.map(l => l.rowData),
                 theme: 'grid',
                 headStyles: { fillColor: [111, 66, 193], textColor: [255, 255, 255], fontStyle: 'bold' },
                 styles: { fontSize: 10, cellPadding: 3 },
                 columnStyles: {
                     0: { halign: 'center' },
                     1: { halign: 'center' },
-                    2: { halign: 'right', fontStyle: 'bold', textColor: [40, 167, 69] }
+                    2: { halign: 'right', fontStyle: 'bold' }
+                },
+                // Troca a cor do texto antes de desenhá-lo
+                willDrawCell: function(data) {
+                    if (data.section === 'body') {
+                        const isPago = linhasParaPdf[data.row.index].isPago;
+                        
+                        if (isPago) {
+                            doc.setTextColor(153, 153, 153); // Fica Cinza se pago
+                        } else if (data.column.index === 2) {
+                            doc.setTextColor(40, 167, 69); // Verde para o valor ativo
+                        } else {
+                            doc.setTextColor(0, 0, 0); // Preto para o restante
+                        }
+                    }
+                },
+                // Desenha o risco por cima do texto depois da célula pronta
+                didDrawCell: function(data) {
+                    if (data.section === 'body') {
+                        const isPago = linhasParaPdf[data.row.index].isPago;
+                        
+                        if (isPago) {
+                            const startX = data.cell.x + 2;
+                            const endX = data.cell.x + data.cell.width - 2;
+                            const midY = data.cell.y + (data.cell.height / 2);
+                            
+                            doc.setDrawColor(153, 153, 153); // Cor do risco
+                            doc.setLineWidth(0.4); // Espessura
+                            doc.line(startX, midY, endX, midY);
+                        }
+                    }
                 }
             });
 
@@ -678,6 +726,7 @@
             
             doc.setFontSize(14);
             doc.setTextColor(40, 167, 69);
+            // Puxa o totalValor dinâmico que já foi descontado pelas caixinhas
             doc.text(`TOTAL GERAL: R$ ${d.totalValor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, 195, finalY, { align: "right" });
             
             doc.setTextColor(0, 0, 0);
