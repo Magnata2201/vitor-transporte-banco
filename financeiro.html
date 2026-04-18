@@ -36,6 +36,9 @@
         .tabela-detalhes th { text-align: left; padding: 10px; background: #f4f4f4; border-bottom: 2px solid #ddd; }
         .tabela-detalhes td { padding: 10px; border-bottom: 1px solid #eee; }
 
+        .linha-paga { text-decoration: line-through; color: #999 !important; background-color: #f4f4f4; }
+        .linha-paga strong { color: #999 !important; }
+
         @media (max-width: 768px) {
             .layout-wrapper { flex-direction: column-reverse; }
             .sidebar-resumo { width: 100%; box-sizing: border-box; flex: none; }
@@ -200,6 +203,7 @@
                     <table class="tabela-detalhes">
                         <thead>
                             <tr>
+                                <th style="text-align: center; width: 50px;">Pago</th>
                                 <th>Data</th>
                                 <th style="text-align: center;">Qtd. Volumes</th>
                                 <th style="text-align: right;">Valor (R$)</th>
@@ -230,7 +234,6 @@
 
         const filtroData = document.getElementById('filtroData');
         
-        // Objeto global para armazenar os dados do extrato atual para o gerador de PDF
         window.dadosExtratoAtual = {
             cliente: '',
             dataInicio: '',
@@ -569,7 +572,6 @@
             btn.textContent = "Aguarde...";
             btn.disabled = true;
 
-            // Resetando dados do PDF
             window.dadosExtratoAtual.cliente = clienteBuscado;
             window.dadosExtratoAtual.dataInicio = dataInicio.split('-').reverse().join('/');
             window.dadosExtratoAtual.dataFim = dataFim.split('-').reverse().join('/');
@@ -586,6 +588,8 @@
 
                 snapRomaneios.forEach(doc => {
                     const r = doc.data();
+                    const idRomaneio = doc.id;
+                    
                     if (r.clientes) {
                         const clienteEncontrado = r.clientes.find(c => c.nome === clienteBuscado);
                         if (clienteEncontrado) {
@@ -597,30 +601,38 @@
                                 volumesViagem += parseFloat(p.volumes || 0);
                             });
 
-                            window.dadosExtratoAtual.totalValor += subtotalViagem;
+                            const isPago = r.pago === true;
+
+                            if (!isPago) {
+                                window.dadosExtratoAtual.totalValor += subtotalViagem;
+                            }
                             window.dadosExtratoAtual.totalVolumes += volumesViagem;
 
                             const dObj = new Date(r.dataSalva);
                             const rDataLocal = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
                             const dataFormatada = rDataLocal.split('-').reverse().join('/');
 
-                            // Adicionando linha ao Array do PDF
                             window.dadosExtratoAtual.linhas.push([
                                 dataFormatada,
                                 volumesViagem.toFixed(1),
                                 `R$ ${subtotalViagem.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
                             ]);
 
-                            htmlTabela += `<tr>
+                            htmlTabela += `<tr id="tr-${idRomaneio}" class="${isPago ? 'linha-paga' : ''}">
+                                <td style="text-align: center;">
+                                    <input type="checkbox" style="transform: scale(1.3); cursor: pointer;" 
+                                        ${isPago ? 'checked' : ''} 
+                                        onchange="window.marcarPagoExtrato('${idRomaneio}', this, ${subtotalViagem})">
+                                </td>
                                 <td>${dataFormatada}</td>
                                 <td style="text-align: center;">${volumesViagem.toFixed(1)}</td>
-                                <td style="text-align: right;"><strong style="color: #28a745;">R$ ${subtotalViagem.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></td>
+                                <td style="text-align: right;"><strong style="${isPago ? '' : 'color: #28a745;'}">R$ ${subtotalViagem.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></td>
                             </tr>`;
                         }
                     }
                 });
 
-                if (htmlTabela === '') htmlTabela = '<tr><td colspan="3" style="text-align: center; color: #999;">Nenhuma viagem encontrada.</td></tr>';
+                if (htmlTabela === '') htmlTabela = '<tr><td colspan="4" style="text-align: center; color: #999;">Nenhuma viagem encontrada.</td></tr>';
                 document.getElementById('tabelaExtratoCorpo').innerHTML = htmlTabela;
                 document.getElementById('totalClienteExtrato').innerHTML = formatarMoeda(window.dadosExtratoAtual.totalValor);
                 document.getElementById('resultadoExtratoCliente').style.display = 'block';
@@ -635,49 +647,44 @@
             const doc = new jsPDF('p', 'mm', 'a4');
             const d = window.dadosExtratoAtual;
 
-            // Título
             doc.setFontSize(16);
             doc.setFont("helvetica", "bold");
             doc.text("EXTRATO DE CLIENTE", 105, 15, { align: "center" });
 
-            // Informações do Cabeçalho
             doc.setFontSize(12);
             doc.setFont("helvetica", "normal");
             doc.text(`CLIENTE: ${d.cliente}`, 15, 25);
             doc.text(`PERÍODO: ${d.dataInicio} até ${d.dataFim}`, 15, 32);
 
-            // Tabela Colorida
             doc.autoTable({
                 startY: 40,
                 head: [['Data', 'Qtd. Volumes', 'Valor (R$)']],
                 body: d.linhas,
                 theme: 'grid',
-                headStyles: { fillColor: [111, 66, 193], textColor: [255, 255, 255], fontStyle: 'bold' }, // Cabeçalho Roxo
+                headStyles: { fillColor: [111, 66, 193], textColor: [255, 255, 255], fontStyle: 'bold' },
                 styles: { fontSize: 10, cellPadding: 3 },
                 columnStyles: {
                     0: { halign: 'center' },
                     1: { halign: 'center' },
-                    2: { halign: 'right', fontStyle: 'bold', textColor: [40, 167, 69] } // Valores em verde
+                    2: { halign: 'right', fontStyle: 'bold', textColor: [40, 167, 69] }
                 }
             });
 
-            // Rodapé de Totais
             const finalY = doc.lastAutoTable.finalY + 10;
             doc.setFontSize(12);
             doc.setFont("helvetica", "bold");
-            doc.setTextColor(0, 0, 0); // Preto
+            doc.setTextColor(0, 0, 0);
             doc.text(`Total de Volumes: ${d.totalVolumes.toFixed(1)}`, 15, finalY);
             
             doc.setFontSize(14);
-            doc.setTextColor(40, 167, 69); // Verde para o total geral
+            doc.setTextColor(40, 167, 69);
             doc.text(`TOTAL GERAL: R$ ${d.totalValor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`, 195, finalY, { align: "right" });
             
-            doc.setTextColor(0, 0, 0); // Volta pro preto
+            doc.setTextColor(0, 0, 0);
 
             return doc;
         }
 
-        // --- BOTÃO: COMPARTILHAR PDF ---
         document.getElementById('btnPdfExtrato').onclick = async (e) => {
             const btn = e.currentTarget;
             const originalText = btn.innerHTML;
@@ -710,7 +717,6 @@
             }
         };
 
-        // --- BOTÃO: BAIXAR PDF ---
         document.getElementById('btnBaixarPdfExtrato').onclick = (e) => {
             const btn = e.currentTarget;
             const originalText = btn.innerHTML;
@@ -722,13 +728,46 @@
                 const d = window.dadosExtratoAtual;
                 const nomeArquivo = `Extrato_${d.cliente.replace(/ /g, '_')}.pdf`;
                 
-                doc.save(nomeArquivo); // Comando direto para forçar o download
+                doc.save(nomeArquivo);
             } catch (error) {
                 console.error("Erro ao baixar PDF:", error);
                 alert("Ocorreu um erro ao baixar o PDF.");
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
+            }
+        };
+
+        // --- FUNÇÃO PARA MARCAR ROMANEIO COMO PAGO PELO EXTRATO ---
+        window.marcarPagoExtrato = async (id, checkbox, valor) => {
+            const tr = document.getElementById(`tr-${id}`);
+            const status = checkbox.checked;
+
+            if (status) {
+                tr.classList.add('linha-paga');
+                window.dadosExtratoAtual.totalValor -= valor;
+            } else {
+                tr.classList.remove('linha-paga');
+                window.dadosExtratoAtual.totalValor += valor;
+            }
+
+            document.getElementById('totalClienteExtrato').innerHTML = formatarMoeda(window.dadosExtratoAtual.totalValor);
+
+            try {
+                await updateDoc(doc(db, "romaneios", id), { pago: status });
+            } catch (e) {
+                alert("Erro de conexão ao salvar o pagamento.");
+                console.error(e);
+                
+                checkbox.checked = !status;
+                if (!status) {
+                    tr.classList.add('linha-paga');
+                    window.dadosExtratoAtual.totalValor -= valor;
+                } else {
+                    tr.classList.remove('linha-paga');
+                    window.dadosExtratoAtual.totalValor += valor;
+                }
+                document.getElementById('totalClienteExtrato').innerHTML = formatarMoeda(window.dadosExtratoAtual.totalValor);
             }
         };
 
@@ -739,7 +778,6 @@
         document.getElementById('btnCloseModalDetalhes').onclick = () => document.getElementById('modalDetalhesDia').style.display = 'none';
         document.getElementById('btnCloseExtratoCliente').onclick = () => document.getElementById('modalExtratoCliente').style.display = 'none';
 
-        // GERA DATA LOCAL PARA O CAMPO DE FILTRO
         const hoje_init = new Date();
         const dataLocal_init = `${hoje_init.getFullYear()}-${String(hoje_init.getMonth() + 1).padStart(2, '0')}-${String(hoje_init.getDate()).padStart(2, '0')}`;
         
