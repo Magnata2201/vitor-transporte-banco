@@ -23,7 +23,7 @@
         }
 
         .filtros { background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 15px; align-items: flex-end; border: 1px solid #ddd; flex-wrap: wrap; }
-        .filtros > div { flex: 1; min-width: 250px; }
+        .filtros > div { flex: 1; min-width: 200px; }
         
         .card-romaneio { background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-left: 5px solid #ccc; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; transition: 0.3s; }
         .card-romaneio.romaneio-pago { border-left: 5px solid #28a745; background-color: #fafffc; }
@@ -90,8 +90,15 @@
                 <input type="text" id="filtroMotorista" placeholder="Procurar motorista...">
             </div>
             <div>
-                <label>Data do Romaneio:</label>
-                <input type="date" id="filtroData">
+                <label>Filtrar por Cliente:</label>
+                <input type="text" id="filtroCliente" placeholder="Procurar cliente...">
+            </div>
+            <div>
+                <label>Data (Deixe vazio para todas):</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="date" id="filtroData" style="flex: 1;">
+                    <button id="btnLimparData" style="background: #dc3545; color: white; border: none; padding: 0 15px; border-radius: 4px; cursor: pointer; font-weight: bold;" title="Ver Todas as Datas">X</button>
+                </div>
             </div>
         </div>
 
@@ -141,14 +148,20 @@
 
         async function carregarRomaneios() {
             const dataBusca = document.getElementById('filtroData').value;
-            if (!dataBusca) return;
-
-            document.getElementById('listaRomaneios').innerHTML = '<p>Buscando romaneios deste dia...</p>';
+            document.getElementById('listaRomaneios').innerHTML = '<p>Buscando romaneios...</p>';
 
             try {
-                const start = dataBusca;
-                const end = dataBusca + "T23:59:59";
-                const q = query(collection(db, "romaneios"), where("dataSalva", ">=", start), where("dataSalva", "<=", end));
+                let q;
+                
+                // Se o usuário selecionou uma data, busca apenas do dia
+                if (dataBusca) {
+                    const start = dataBusca;
+                    const end = dataBusca + "T23:59:59";
+                    q = query(collection(db, "romaneios"), where("dataSalva", ">=", start), where("dataSalva", "<=", end));
+                } else {
+                    // Se a data está vazia, busca TODOS os romaneios do banco de dados
+                    q = query(collection(db, "romaneios"));
+                }
                 
                 const querySnapshot = await getDocs(q);
                 todosRomaneios = [];
@@ -157,7 +170,9 @@
                     todosRomaneios.push({ ...docSnap.data(), id: docSnap.id }); 
                 });
                 
+                // Ordenar do mais novo para o mais antigo localmente
                 todosRomaneios.sort((a, b) => new Date(b.dataSalva) - new Date(a.dataSalva));
+                
                 filtrar(); 
             } catch (error) { 
                 console.error("Erro:", error);
@@ -167,14 +182,25 @@
 
         function filtrar() {
             const motoristaBusca = document.getElementById('filtroMotorista').value.toLowerCase();
+            const clienteBusca = document.getElementById('filtroCliente').value.toLowerCase();
             
             filtrados = todosRomaneios.filter(r => {
-                return r.motorista && r.motorista.toLowerCase().includes(motoristaBusca);
+                // Checa compatibilidade com Motorista
+                const matchMotorista = !motoristaBusca || (r.motorista && r.motorista.toLowerCase().includes(motoristaBusca));
+                
+                // Checa compatibilidade com Cliente (Procura dentro do array de clientes do romaneio)
+                let matchCliente = true;
+                if (clienteBusca) {
+                    matchCliente = r.clientes && r.clientes.some(c => c.nome.toLowerCase().includes(clienteBusca));
+                }
+
+                // O romaneio precisa atender a todas as condições pesquisadas
+                return matchMotorista && matchCliente;
             });
 
             const listaDiv = document.getElementById('listaRomaneios');
             if (filtrados.length === 0) {
-                listaDiv.innerHTML = '<p style="color: #666; font-style: italic;">Nenhum romaneio encontrado para esta data/motorista.</p>';
+                listaDiv.innerHTML = '<p style="color: #666; font-style: italic;">Nenhum romaneio encontrado para estes filtros.</p>';
                 return;
             }
 
@@ -331,7 +357,6 @@
             return { doc, nomeDoArquivo, nomesClientesParaArquivo };
         };
 
-        // --- SOLUÇÃO UNIVERSAL DE DOWNLOAD (Corrige o erro do arquivo .bin no Android) ---
         function forcarDownloadPDF(doc, nomeDoArquivo) {
             const pdfBlob = doc.output('blob');
             const blob = new Blob([pdfBlob], { type: 'application/pdf' });
@@ -544,8 +569,16 @@
             setTimeout(() => { window.print(); }, 300);
         };
 
+        // --- ATIVANDO OS EVENTOS DOS FILTROS ---
         document.getElementById('filtroMotorista').oninput = filtrar;
+        document.getElementById('filtroCliente').oninput = filtrar; // <-- OUVINTE NOVO FILTRO CLIENTE
         document.getElementById('filtroData').onchange = carregarRomaneios;
+        
+        // Limpar Data para ver todas as Viagens
+        document.getElementById('btnLimparData').onclick = () => {
+            document.getElementById('filtroData').value = '';
+            carregarRomaneios();
+        };
         
         carregarRomaneios();
     </script>
