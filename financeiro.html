@@ -153,11 +153,34 @@
         <div class="modal-content modal-grande">
             <span class="modal-close" id="btnCloseGeral">&times;</span>
             <h2>📊 Relatório de Saldo Geral</h2>
+            
+            <div style="display: flex; gap: 15px; background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; align-items: flex-end; flex-wrap: wrap;">
+                <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                    <label style="font-size: 12px;">Data Início:</label>
+                    <input type="date" id="dataInicioGeral">
+                </div>
+                <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                    <label style="font-size: 12px;">Data Fim:</label>
+                    <input type="date" id="dataFimGeral">
+                </div>
+                <button id="btnFiltrarGeral" style="padding: 10px 20px; background: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">🔍 Filtrar</button>
+            </div>
+
             <div style="max-height: 400px; overflow-y: auto;">
                 <table style="width: 100%; border-collapse: collapse;">
-                    <thead><tr style="border-bottom: 2px solid #ddd;"><th style="padding:10px">Data</th><th style="padding:10px">Saldo Líquido</th></tr></thead>
+                    <thead>
+                        <tr style="border-bottom: 2px solid #ddd;">
+                            <th style="padding:10px; text-align: left;">Data</th>
+                            <th style="padding:10px; text-align: right;">Saldo do Dia</th>
+                        </tr>
+                    </thead>
                     <tbody id="tabelaGeralCorpo"></tbody>
-                    <tfoot><tr style="background:#f9f9f9; font-weight:bold;"><td style="padding:10px">TOTAL ACUMULADO</td><td style="padding:10px" id="totalGeralRodape">R$ 0,00</td></tr></tfoot>
+                    <tfoot>
+                        <tr style="background:#f9f9f9; font-weight:bold; border-top: 2px solid #ddd;">
+                            <td style="padding:10px">TOTAL NO PERÍODO</td>
+                            <td style="padding:10px; text-align: right;" id="totalGeralRodape">R$ 0,00</td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>
@@ -506,36 +529,78 @@
             atualizarDashboard();
         };
 
-        // --- RELATÓRIO GERAL ---
-        document.getElementById('btnRelatorioGeral').onclick = async () => {
-            const snapR = await getDocs(collection(db, "romaneios"));
-            const snapD = await getDocs(collection(db, "despesas"));
-            let saldoD = {};
-            
-            snapR.forEach(doc => { 
-                if(doc.data().dataSalva) { 
-                    const dObj = new Date(doc.data().dataSalva);
-                    const d = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
-                    saldoD[d] = (saldoD[d]||0) + parseFloat(doc.data().valorTotal||0); 
-                }
-            });
-            
-            snapD.forEach(doc => { 
-                if(doc.data().data){ 
-                    const d = doc.data().data; 
-                    saldoD[d] = (saldoD[d]||0) - parseFloat(doc.data().valor||0); 
-                }
-            });
-            
+        // --- RELATÓRIO GERAL COM FILTRO DE DATAS ---
+        async function carregarRelatorioGeral() {
+            const dataInicio = document.getElementById('dataInicioGeral').value;
+            const dataFim = document.getElementById('dataFimGeral').value;
             const tbody = document.getElementById('tabelaGeralCorpo');
-            tbody.innerHTML = ''; let total = 0;
-            Object.keys(saldoD).sort().reverse().forEach(d => {
-                total += saldoD[d];
-                tbody.innerHTML += `<tr><td style="padding:10px">${d.split('-').reverse().join('/')}</td><td style="padding:10px;">${formatarColorido(saldoD[d])}</td></tr>`;
-            });
-            document.getElementById('totalGeralRodape').innerHTML = formatarColorido(total);
+            const rodape = document.getElementById('totalGeralRodape');
+
+            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding:20px;">Carregando...</td></tr>';
+
+            try {
+                const qR = query(collection(db, "romaneios"), 
+                                where("dataSalva", ">=", dataInicio), 
+                                where("dataSalva", "<=", dataFim + "T23:59:59"));
+                
+                const qD = query(collection(db, "despesas"), 
+                                where("data", ">=", dataInicio), 
+                                where("data", "<=", dataFim));
+
+                const [snapR, snapD] = await Promise.all([getDocs(qR), getDocs(qD)]);
+                
+                let saldoD = {};
+
+                snapR.forEach(doc => {
+                    const dataISO = doc.data().dataSalva.split('T')[0];
+                    saldoD[dataISO] = (saldoD[dataISO] || 0) + parseFloat(doc.data().valorTotal || 0);
+                });
+
+                snapD.forEach(doc => {
+                    const dataISO = doc.data().data;
+                    saldoD[dataISO] = (saldoD[dataISO] || 0) - parseFloat(doc.data().valor || 0);
+                });
+
+                tbody.innerHTML = '';
+                let totalAcumulado = 0;
+                
+                const datasOrdenadas = Object.keys(saldoD).sort().reverse();
+
+                if (datasOrdenadas.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding:20px; color:#999;">Nenhuma movimentação neste período.</td></tr>';
+                }
+
+                datasOrdenadas.forEach(d => {
+                    totalAcumulado += saldoD[d];
+                    tbody.innerHTML += `
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding:10px">${d.split('-').reverse().join('/')}</td>
+                            <td style="padding:10px; text-align: right;">${formatarColorido(saldoD[d])}</td>
+                        </tr>`;
+                });
+
+                rodape.innerHTML = formatarColorido(totalAcumulado);
+
+            } catch (e) {
+                console.error(e);
+                tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color:red;">Erro ao carregar dados.</td></tr>';
+            }
+        }
+
+        document.getElementById('btnRelatorioGeral').onclick = () => {
+            const hoje = new Date();
+            const primeiroDia = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-01`;
+            const ultimoDiaDate = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+            const ultimoDia = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(ultimoDiaDate.getDate()).padStart(2, '0')}`;
+
+            document.getElementById('dataInicioGeral').value = primeiroDia;
+            document.getElementById('dataFimGeral').value = ultimoDia;
+
             document.getElementById('modalRelatorioGeral').style.display = 'block';
+            carregarRelatorioGeral();
         };
+
+        document.getElementById('btnFiltrarGeral').onclick = carregarRelatorioGeral;
 
         // --- EXTRATO DO CLIENTE ---
         document.getElementById('btnResumoCliente').onclick = async () => {
@@ -642,7 +707,6 @@
         };
 
         // --- FUNÇÃO CENTRAL DE GERAÇÃO DE PDF DO EXTRATO ---
-       // --- FUNÇÃO CENTRAL DE GERAÇÃO DE PDF DO EXTRATO ---
         function gerarDocumentoPdfExtrato() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('p', 'mm', 'a4');
