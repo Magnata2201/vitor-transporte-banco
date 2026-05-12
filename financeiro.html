@@ -296,11 +296,24 @@
                     const valor = parseFloat(r.valorTotal || 0);
                     const nome = r.motorista ? r.motorista.toUpperCase() : "DESCONHECIDO";
                     
+                    // --- LÓGICA NOVA: Calcular total de volumes do romaneio ---
+                    let totalVolumesRomaneio = 0;
+                    if (r.clientes && Array.isArray(r.clientes)) {
+                        r.clientes.forEach(cliente => {
+                            if (cliente.produtos && Array.isArray(cliente.produtos)) {
+                                cliente.produtos.forEach(produto => {
+                                    totalVolumesRomaneio += parseFloat(produto.volumes || 0);
+                                });
+                            }
+                        });
+                    }
+                    
                     if (!statsMotoristas[nome]) {
-                        statsMotoristas[nome] = { bruto: 0, despesas: 0, liquido: 0 };
+                        statsMotoristas[nome] = { bruto: 0, despesas: 0, liquido: 0, volumes: 0 };
                     }
                     statsMotoristas[nome].bruto += valor;
                     statsMotoristas[nome].liquido += valor; 
+                    statsMotoristas[nome].volumes += totalVolumesRomaneio; 
                 });
 
                 const qDespesas = query(collection(db, "despesas"), where("data", "==", dataISO));
@@ -316,7 +329,7 @@
                     if (d.motorista) {
                         const nomeM = d.motorista.toUpperCase();
                         if (!statsMotoristas[nomeM]) {
-                            statsMotoristas[nomeM] = { bruto: 0, despesas: 0, liquido: 0 };
+                            statsMotoristas[nomeM] = { bruto: 0, despesas: 0, liquido: 0, volumes: 0 };
                         }
                         statsMotoristas[nomeM].despesas += valor;
                         statsMotoristas[nomeM].liquido -= valor; 
@@ -339,7 +352,16 @@
                     const m = statsMotoristas[moto];
                     const div = document.createElement('div');
                     div.className = 'item-motorista';
-                    div.innerHTML = `<strong>🚚 ${moto}</strong> ${formatarColorido(m.liquido)}`;
+                    
+                    // --- LÓGICA NOVA: Exibir os volumes abaixo do nome do motorista ---
+                    div.innerHTML = `
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <strong>🚚 ${moto}</strong>
+                            <span style="font-size: 11px; color: #888;">📦 Vol: ${m.volumes.toFixed(1)}</span>
+                        </div>
+                        <div>${formatarColorido(m.liquido)}</div>
+                    `;
+                    
                     div.onclick = () => abrirModalDespesaMotorista(moto);
                     listaUI.appendChild(div);
                 });
