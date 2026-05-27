@@ -102,7 +102,29 @@
             </div>
         </div>
 
-        <button class="btn-geral" onclick="window.abrirModalOrdem()">🖨️ IMPRIMIR RESUMO GERAL (ORDENAR CLIENTES)</button>
+        <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+            <button class="btn-geral" style="margin-bottom: 0; flex: 3; min-width: 250px;" onclick="window.abrirModalOrdem()">🖨️ IMPRIMIR RESUMO GERAL (ORDENAR CLIENTES)</button>
+            <button class="btn-excluir" style="margin-bottom: 0; flex: 1; min-width: 150px; background-color: #6c757d; font-weight: bold; font-size: 14px; border-radius: 5px;" onclick="window.togglePainelExclusao()">⚙️ Limpeza de Banco</button>
+        </div>
+
+        <div id="painelExclusao" class="filtros" style="display: none; border-left: 5px solid #dc3545; background-color: #fff5f5;">
+            <div style="flex: 2; min-width: 250px;">
+                <label style="color: #c82333; font-weight: bold;">🚨 Exclusão em Massa por Período:</label>
+                <div style="display: flex; gap: 10px; margin-top: 5px;">
+                    <div style="flex: 1;">
+                        <span style="font-size: 11px; color: #555;">De:</span>
+                        <input type="date" id="excluirDataInicio" style="width: 100%; box-sizing: border-box; padding: 6px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <span style="font-size: 11px; color: #555;">Até:</span>
+                        <input type="date" id="excluirDataFim" style="width: 100%; box-sizing: border-box; padding: 6px;">
+                    </div>
+                </div>
+            </div>
+            <div style="flex: 1; min-width: 150px;">
+                <button class="btn-excluir" style="width: 100%; padding: 11px; font-weight: bold; font-size: 14px; border-radius: 5px; height: 38px;" onclick="window.excluirEmMassa()">🗑️ Deletar Período</button>
+            </div>
+        </div>
 
         <div id="listaRomaneios">
             <p>A carregar dados do Firebase...</p>
@@ -125,7 +147,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, getDocs, query, orderBy, doc, deleteDoc, updateDoc, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, query, orderBy, doc, deleteDoc, updateDoc, where, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCwLzjKJXDCf-9UNNT1X5fzvEgFIc1Hh24",
@@ -152,14 +174,11 @@
 
             try {
                 let q;
-                
-                // Se o usuário selecionou uma data, busca apenas do dia
                 if (dataBusca) {
                     const start = dataBusca;
                     const end = dataBusca + "T23:59:59";
                     q = query(collection(db, "romaneios"), where("dataSalva", ">=", start), where("dataSalva", "<=", end));
                 } else {
-                    // Se a data está vazia, busca TODOS os romaneios do banco de dados
                     q = query(collection(db, "romaneios"));
                 }
                 
@@ -170,7 +189,6 @@
                     todosRomaneios.push({ ...docSnap.data(), id: docSnap.id }); 
                 });
                 
-                // Ordenar do mais novo para o mais antigo localmente
                 todosRomaneios.sort((a, b) => new Date(b.dataSalva) - new Date(a.dataSalva));
                 
                 filtrar(); 
@@ -185,16 +203,11 @@
             const clienteBusca = document.getElementById('filtroCliente').value.toLowerCase();
             
             filtrados = todosRomaneios.filter(r => {
-                // Checa compatibilidade com Motorista
                 const matchMotorista = !motoristaBusca || (r.motorista && r.motorista.toLowerCase().includes(motoristaBusca));
-                
-                // Checa compatibilidade com Cliente (Procura dentro do array de clientes do romaneio)
                 let matchCliente = true;
                 if (clienteBusca) {
                     matchCliente = r.clientes && r.clientes.some(c => c.nome.toLowerCase().includes(clienteBusca));
                 }
-
-                // O romaneio precisa atender a todas as condições pesquisadas
                 return matchMotorista && matchCliente;
             });
 
@@ -234,6 +247,85 @@
             }).join('');
         }
 
+        window.togglePainelExclusao = () => {
+            const painel = document.getElementById('painelExclusao');
+            if (painel.style.display === 'none' || !painel.style.display) {
+                painel.style.display = 'flex';
+            } else {
+                painel.style.display = 'none';
+            }
+        };
+
+        window.excluirEmMassa = async () => {
+            const dataInicio = document.getElementById('excluirDataInicio').value;
+            const dataFim = document.getElementById('excluirDataFim').value;
+
+            if (!dataInicio || !dataFim) {
+                alert("Por favor, selecione ambas as datas (Início e Fim).");
+                return;
+            }
+
+            if (new Date(dataInicio) > new Date(dataFim)) {
+                alert("A data de início não pode ser maior que a data final.");
+                return;
+            }
+
+            const formatarDataBr = (str) => {
+                const p = str.split('-');
+                return `${p[2]}/${p[1]}/${p[0]}`;
+            };
+
+            // PRIMEIRO AVISO
+            const primeiroAviso = confirm(`⚠️ PRIMEIRO AVISO DE SEGURANÇA ⚠️\n\nVocê solicitou a exclusão EM MASSA de dados entre ${formatarDataBr(dataInicio)} e ${formatarDataBr(dataFim)}.\n\nEssa ação é IRREVERSÍVEL. Deseja realizar a busca de validação dos registros?`);
+            if (!primeiroAviso) return;
+
+            try {
+                const start = dataInicio;
+                const end = dataFim + "T23:59:59";
+                const q = query(collection(db, "romaneios"), where("dataSalva", ">=", start), where("dataSalva", "<=", end));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    alert("Nenhum romaneio localizado neste intervalo.");
+                    return;
+                }
+
+                const totalRegistros = querySnapshot.size;
+
+                // SEGUNDO AVISO
+                const segundoAviso = confirm(`🚨 SEGUNDO AVISO CRÍTICO 🚨\n\nForam encontrados ${totalRegistros} romaneios salvos nesse período.\n\nConfirmar a exclusão DEFINITIVA de todos os ${totalRegistros} documentos? Os dados sumirão permanentemente.`);
+                if (!segundoAviso) return;
+
+                let batch = writeBatch(db);
+                let contador = 0;
+
+                for (const docSnap of querySnapshot.docs) {
+                    batch.delete(docSnap.ref);
+                    contador++;
+
+                    if (contador === 500) {
+                        await batch.commit();
+                        batch = writeBatch(db);
+                        contador = 0;
+                    }
+                }
+
+                if (contador > 0) {
+                    await batch.commit();
+                }
+
+                alert(`Sucesso! ${totalRegistros} registros foram excluídos.`);
+                document.getElementById('excluirDataInicio').value = '';
+                document.getElementById('excluirDataFim').value = '';
+                document.getElementById('painelExclusao').style.display = 'none';
+                carregarRomaneios();
+
+            } catch (error) {
+                console.error(error);
+                alert("Erro ao executar a exclusão em massa: " + error.message);
+            }
+        };
+
         window.marcarComoPago = async (id, statusAtual) => {
             try {
                 await updateDoc(doc(db, "romaneios", id), { pago: statusAtual });
@@ -241,8 +333,8 @@
                 if(romaneioIndex !== -1) todosRomaneios[romaneioIndex].pago = statusAtual;
                 filtrar();
             } catch (error) {
-                console.error("Erro ao atualizar pagamento:", error);
-                alert("Erro ao salvar o status. Tente novamente.");
+                console.error(error);
+                alert("Erro ao salvar o status.");
                 filtrar(); 
             }
         };
@@ -267,7 +359,6 @@
         const gerarDocPdfRomaneio = (r) => {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('p', 'mm', 'a4');
-            
             const dataFormatada = new Date(r.dataSalva).toLocaleDateString('pt-BR');
             const nomesClientesParaArquivo = r.clientes ? r.clientes.map(c => c.nome).join('_') : 'Desconhecido';
             const nomeDoArquivo = `Romaneio_${nomesClientesParaArquivo}.pdf`.replace(/ /g, '_');
@@ -333,14 +424,9 @@
                 });
 
                 controleY = doc.lastAutoTable.finalY + 8;
-                
                 const volCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.volumes || 0), 0);
-                const linhasCli = cliente.produtos.length;
-                
-                totalLinhasGeral += linhasCli;
+                totalLinhasGeral += cliente.produtos.length;
                 totalVolumesGeral += volCli;
-                
-                controleY += 10;
             });
 
             controleY += 5;
@@ -361,13 +447,11 @@
             const pdfBlob = doc.output('blob');
             const blob = new Blob([pdfBlob], { type: 'application/pdf' });
             const url = window.URL.createObjectURL(blob);
-            
             const link = document.createElement('a');
             link.href = url;
             link.download = nomeDoArquivo;
             document.body.appendChild(link);
             link.click();
-            
             setTimeout(() => {
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(link);
@@ -395,16 +479,14 @@
                             title: 'Romaneio de Entrega',
                             text: `Segue o romaneio do cliente: ${nomesClientesParaArquivo.replace(/_/g, ', ')}`
                         });
-                    } catch (shareError) {
-                        console.log("Compartilhamento cancelado", shareError);
-                    }
+                    } catch (shareError) { console.log(shareError); }
                 } else {
                     forcarDownloadPDF(doc, nomeDoArquivo);
-                    alert(`Compartilhamento direto indisponível. O arquivo foi baixado.`);
+                    alert(`Compartilhamento indisponível. O arquivo foi baixado.`);
                 }
             } catch (error) {
                 console.error(error);
-                alert("Erro ao tentar compartilhar o PDF.");
+                alert("Erro ao tentar compartilhar.");
             } finally {
                 btn.innerHTML = originalHTML;
                 btn.disabled = false;
@@ -414,19 +496,15 @@
         window.baixarPdfRomaneio = async (id, event) => {
             const r = todosRomaneios.find(rom => rom.id === id);
             if (!r) return;
-
             const btn = event.currentTarget;
             const originalHTML = btn.innerHTML;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ...';
             btn.disabled = true;
-
             try {
                 const { doc, nomeDoArquivo } = gerarDocPdfRomaneio(r);
                 forcarDownloadPDF(doc, nomeDoArquivo); 
-            } catch (error) {
-                console.error(error);
-                alert("Erro ao baixar o PDF.");
-            } finally {
+            } catch (error) { alert("Erro ao baixar o PDF."); }
+            finally {
                 btn.innerHTML = originalHTML;
                 btn.disabled = false;
             }
@@ -463,13 +541,10 @@
 
             clientesParaImprimir.sort((a, b) => a.ordemImpressao - b.ordemImpressao);
             const area = document.getElementById('areaImpressaoGeral');
-            
             let html = `<div style="text-align:center; margin-bottom:30px; border-bottom: 3px double #000;"><h1>RESUMO GERAL DE CARGA</h1></div>`;
 
             clientesParaImprimir.forEach(cliente => {
                 const volCli = cliente.produtos.reduce((acc, p) => acc + parseFloat(p.volumes || 0), 0);
-                const linhasCli = cliente.produtos.length;
-
                 html += `
                     <div class="bloco-cliente-impressao">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -499,7 +574,7 @@
                             </tbody>
                         </table>
                         <div style="text-align: right; font-weight: bold; font-size: 1em; padding-top: 8px;">
-                            Linhas: ${linhasCli} | Volumes: ${volCli.toFixed(1)}
+                            Linhas: ${cliente.produtos.length} | Volumes: ${volCli.toFixed(1)}
                         </div>
                     </div>`;
             });
@@ -513,9 +588,9 @@
             const r = todosRomaneios.find(rom => rom.id === id);
             const area = document.getElementById('areaImpressaoGeral');
             let html = "";
-            
             let totalLinhasRomaneio = 0;
             let totalVolumesRomaneio = 0;
+
             r.clientes.forEach(c => {
                 totalLinhasRomaneio += c.produtos.length;
                 totalVolumesRomaneio += c.produtos.reduce((acc, p) => acc + parseFloat(p.volumes || 0), 0);
@@ -558,7 +633,6 @@
                             </tbody>
                         </table>
                     </div>
-                    
                     <div style="margin-top:20px; display:flex; justify-content:space-between; align-items:center; font-size:1.2em; background:#f9f9f9; padding:10px; border: 1px solid #000;">
                         <span style="font-size: 0.9em;"><strong>Qtd. Linhas: ${totalLinhasRomaneio} | Tot. Volumes: ${totalVolumesRomaneio.toFixed(1)}</strong></span>
                         <span><strong>VALOR TOTAL: R$ ${parseFloat(r.valorTotal || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></span>
@@ -569,12 +643,10 @@
             setTimeout(() => { window.print(); }, 300);
         };
 
-        // --- ATIVANDO OS EVENTOS DOS FILTROS ---
         document.getElementById('filtroMotorista').oninput = filtrar;
-        document.getElementById('filtroCliente').oninput = filtrar; // <-- OUVINTE NOVO FILTRO CLIENTE
+        document.getElementById('filtroCliente').oninput = filtrar; 
         document.getElementById('filtroData').onchange = carregarRomaneios;
         
-        // Limpar Data para ver todas as Viagens
         document.getElementById('btnLimparData').onclick = () => {
             document.getElementById('filtroData').value = '';
             carregarRomaneios();
